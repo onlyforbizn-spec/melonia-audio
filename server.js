@@ -13,14 +13,6 @@ const SHOP = process.env.SHOPIFY_SHOP;
 const TOKEN = process.env.SHOPIFY_TOKEN;
 const API = '2026-04';
 
-const STORE_FILE = path.join(os.tmpdir(), 'previews.json');
-function loadStore() {
-  try { return JSON.parse(fs.readFileSync(STORE_FILE, 'utf8')); } catch { return {}; }
-}
-function saveStore(s) {
-  try { fs.writeFileSync(STORE_FILE, JSON.stringify(s)); } catch (e) { console.log('STORE ERROR:', e.message); }
-}
-
 function pickFile(req) {
   if (req.file) return req.file;
   if (req.files && req.files.length) return req.files[0];
@@ -40,12 +32,29 @@ function shopifyGraphQL(body) {
   }).then(r => r.json());
 }
 
-// interroge Shopify jusqu'à obtenir l'URL CDN permanente
+// cherche un fichier dans Shopify par son nom, renvoie son URL CDN si trouvé
+async function findFileUrl(filename) {
+  const q = {
+    query: `query($query: String!) {
+      files(first: 1, query: $query) {
+        edges { node { ... on GenericFile { url } } }
+      }
+    }`,
+    variables: { query: `filename:${filename}` }
+  };
+  try {
+    const r = await shopifyGraphQL(q);
+    const edge = r.data && r.data.files && r.data.files.edges[0];
+    return edge && edge.node && edge.node.url ? edge.node.url : null;
+  } catch (e) {
+    console.log('FIND ERROR:', e.message);
+    return null;
+  }
+}
+
 async function pollFileUrl(fileId) {
   const q = {
-    query: `query($id: ID!) {
-      node(id: $id) { ... on GenericFile { url fileStatus } }
-    }`,
+    query: `query($id: ID!) { node(id: $id) { ... on GenericFile { url } } }`,
     variables: { id: fileId }
   };
   for (let i = 0; i < 10; i++) {
@@ -85,10 +94,8 @@ async function uploadToShopify(filePath, filename) {
   });
   const file = created.data.fileCreate.files[0];
 
-  // si l'URL CDN n'est pas immédiate, on l'attend
   let finalUrl = file && file.url;
   if (!finalUrl && file && file.id) finalUrl = await pollFileUrl(file.id);
-
   return finalUrl || target.resourceUrl;
 }
 
@@ -122,19 +129,36 @@ app.post('/save_preview', anyFile, async (req, res) => {
   try {
     const url = await uploadToShopify(file.path, `preview_${leadId}.mp3`);
     fs.unlink(file.path, () => {});
-    const store = loadStore();
-    store[leadId] = url;
-    saveStore(store);
     res.json({ lead_id: leadId, url });
   } catch (e) { console.log('SAVE ERROR:', e.message); res.status(500).send('upload error: ' + e.message); }
 });
 
-app.get('/ready', (req, res) => {
+// /ready : demande à Shopify si la preview du lead existe, renvoie son URL durable
+app.get('/ready', async (req, res) => {
   const leadId = req.query.lead_id;
   if (!leadId) return res.status(400).json({ ready: false, error: 'no lead_id' });
-  const store = loadStore();
-  if (store[leadId]) return res.json({ ready: true, url: store[leadId] });
-  res.json({ ready: false });
+  try {
+    const url = await findFileUrl(`preview_${leadId}.mp3`);
+    if (url) return res.json({ ready: true, url });
+    res.json({ ready: false });
+  } catch (e) {
+    console.log('READY ERROR:', e.message);
+    res.json({ ready: false });
+  }
+});
+
+// /full : pareil mais pour la chanson complète (après achat)
+app.get('/full', async (req, res) => {
+  const leadId = req.query.lead_id;
+  if (!leadId) return res.status(400).json({ ready: false, error: 'no lead_id' });
+  try {
+    const url = await findFileUrl(`${leadId}.mp3`);
+    if (url) return res.json({ ready: true, url });
+    res.json({ ready: false });
+  } catch (e) {
+    console.log('FULL ERROR:', e.message);
+    res.json({ ready: false });
+  }
 });
 
 app.get('/', (req, res) => res.send('Melonia audio server OK'));
