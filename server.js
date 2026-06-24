@@ -13,13 +13,12 @@ const SHOP = process.env.SHOPIFY_SHOP;
 const TOKEN = process.env.SHOPIFY_TOKEN;
 const API = '2026-04';
 
-// petite "mémoire" persistée sur disque : lead_id -> url preview
-const STORE = '/tmp/previews.json';
+const STORE_FILE = path.join(os.tmpdir(), 'previews.json');
 function loadStore() {
-  try { return JSON.parse(fs.readFileSync(STORE, 'utf8')); } catch { return {}; }
+  try { return JSON.parse(fs.readFileSync(STORE_FILE, 'utf8')); } catch { return {}; }
 }
-function saveStore(obj) {
-  try { fs.writeFileSync(STORE, JSON.stringify(obj)); } catch (e) { console.log('STORE write error', e.message); }
+function saveStore(s) {
+  try { fs.writeFileSync(STORE_FILE, JSON.stringify(s)); } catch (e) { console.log('STORE ERROR:', e.message); }
 }
 
 function pickFile(req) {
@@ -33,10 +32,36 @@ app.use((req, res, next) => {
   next();
 });
 
+function shopifyGraphQL(body) {
+  return fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': TOKEN },
+    body: JSON.stringify(body)
+  }).then(r => r.json());
+}
+
+// interroge Shopify jusqu'à obtenir l'URL CDN permanente
+async function pollFileUrl(fileId) {
+  const q = {
+    query: `query($id: ID!) {
+      node(id: $id) { ... on GenericFile { url fileStatus } }
+    }`,
+    variables: { id: fileId }
+  };
+  for (let i = 0; i < 10; i++) {
+    const r = await shopifyGraphQL(q);
+    const node = r.data && r.data.node;
+    if (node && node.url) return node.url;
+    await new Promise(res => setTimeout(res, 1500));
+  }
+  return null;
+}
+
 async function uploadToShopify(filePath, filename) {
   const fileBuffer = fs.readFileSync(filePath);
   const size = fileBuffer.length;
-  const stagedQuery = {
+
+  const staged = await shopifyGraphQL({
     query: `mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
       stagedUploadsCreate(input: $input) {
         stagedTargets { url resourceUrl parameters { name value } }
@@ -44,31 +69,27 @@ async function uploadToShopify(filePath, filename) {
       }
     }`,
     variables: { input: [{ filename, mimeType: 'audio/mpeg', resource: 'FILE', httpMethod: 'POST', fileSize: String(size) }] }
-  };
-  const stagedRes = await fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': TOKEN },
-    body: JSON.stringify(stagedQuery)
   });
-  const staged = await stagedRes.json();
   const target = staged.data.stagedUploadsCreate.stagedTargets[0];
+
   const form = new FormData();
   for (const p of target.parameters) form.append(p.name, p.value);
   form.append('file', new Blob([fileBuffer]), filename);
   await fetch(target.url, { method: 'POST', body: form });
-  const fileCreate = {
+
+  const created = await shopifyGraphQL({
     query: `mutation fileCreate($files: [FileCreateInput!]!) {
-      fileCreate(files: $files) { files { ... on GenericFile { url } } userErrors { message } }
+      fileCreate(files: $files) { files { id ... on GenericFile { url } } userErrors { message } }
     }`,
     variables: { files: [{ originalSource: target.resourceUrl, contentType: 'FILE' }] }
-  };
-  const createRes = await fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': TOKEN },
-    body: JSON.stringify(fileCreate)
   });
-  const created = await createRes.json();
-  return created.data.fileCreate.files[0]?.url || target.resourceUrl;
+  const file = created.data.fileCreate.files[0];
+
+  // si l'URL CDN n'est pas immédiate, on l'attend
+  let finalUrl = file && file.url;
+  if (!finalUrl && file && file.id) finalUrl = await pollFileUrl(file.id);
+
+  return finalUrl || target.resourceUrl;
 }
 
 app.post('/trim', anyFile, (req, res) => {
@@ -101,7 +122,6 @@ app.post('/save_preview', anyFile, async (req, res) => {
   try {
     const url = await uploadToShopify(file.path, `preview_${leadId}.mp3`);
     fs.unlink(file.path, () => {});
-    // on mémorise l'association lead_id -> url
     const store = loadStore();
     store[leadId] = url;
     saveStore(store);
@@ -109,16 +129,12 @@ app.post('/save_preview', anyFile, async (req, res) => {
   } catch (e) { console.log('SAVE ERROR:', e.message); res.status(500).send('upload error: ' + e.message); }
 });
 
-// la page VSL appelle ça en boucle : /ready?lead_id=MLN-XXXX
 app.get('/ready', (req, res) => {
   const leadId = req.query.lead_id;
   if (!leadId) return res.status(400).json({ ready: false, error: 'no lead_id' });
   const store = loadStore();
-  if (store[leadId]) {
-    res.json({ ready: true, url: store[leadId] });
-  } else {
-    res.json({ ready: false });
-  }
+  if (store[leadId]) return res.json({ ready: true, url: store[leadId] });
+  res.json({ ready: false });
 });
 
 app.get('/', (req, res) => res.send('Melonia audio server OK'));
