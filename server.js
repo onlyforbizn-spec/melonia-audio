@@ -13,13 +13,21 @@ const SHOP = process.env.SHOPIFY_SHOP;
 const TOKEN = process.env.SHOPIFY_TOKEN;
 const API = '2026-04';
 
+// petite "mémoire" persistée sur disque : lead_id -> url preview
+const STORE = '/tmp/previews.json';
+function loadStore() {
+  try { return JSON.parse(fs.readFileSync(STORE, 'utf8')); } catch { return {}; }
+}
+function saveStore(obj) {
+  try { fs.writeFileSync(STORE, JSON.stringify(obj)); } catch (e) { console.log('STORE write error', e.message); }
+}
+
 function pickFile(req) {
   if (req.file) return req.file;
   if (req.files && req.files.length) return req.files[0];
   return null;
 }
 
-// log toutes les requêtes entrantes
 app.use((req, res, next) => {
   console.log(`>>> ${req.method} ${req.url} | content-type: ${req.headers['content-type']}`);
   next();
@@ -93,13 +101,28 @@ app.post('/save_preview', anyFile, async (req, res) => {
   try {
     const url = await uploadToShopify(file.path, `preview_${leadId}.mp3`);
     fs.unlink(file.path, () => {});
+    // on mémorise l'association lead_id -> url
+    const store = loadStore();
+    store[leadId] = url;
+    saveStore(store);
     res.json({ lead_id: leadId, url });
   } catch (e) { console.log('SAVE ERROR:', e.message); res.status(500).send('upload error: ' + e.message); }
 });
 
+// la page VSL appelle ça en boucle : /ready?lead_id=MLN-XXXX
+app.get('/ready', (req, res) => {
+  const leadId = req.query.lead_id;
+  if (!leadId) return res.status(400).json({ ready: false, error: 'no lead_id' });
+  const store = loadStore();
+  if (store[leadId]) {
+    res.json({ ready: true, url: store[leadId] });
+  } else {
+    res.json({ ready: false });
+  }
+});
+
 app.get('/', (req, res) => res.send('Melonia audio server OK'));
 
-// gestionnaire d'erreur global (capte les erreurs multer)
 app.use((err, req, res, next) => {
   console.log('GLOBAL ERROR:', err.message);
   res.status(400).send('error: ' + err.message);
