@@ -19,10 +19,15 @@ function pickFile(req) {
   return null;
 }
 
+// log toutes les requêtes entrantes
+app.use((req, res, next) => {
+  console.log(`>>> ${req.method} ${req.url} | content-type: ${req.headers['content-type']}`);
+  next();
+});
+
 async function uploadToShopify(filePath, filename) {
   const fileBuffer = fs.readFileSync(filePath);
   const size = fileBuffer.length;
-
   const stagedQuery = {
     query: `mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
       stagedUploadsCreate(input: $input) {
@@ -39,12 +44,10 @@ async function uploadToShopify(filePath, filename) {
   });
   const staged = await stagedRes.json();
   const target = staged.data.stagedUploadsCreate.stagedTargets[0];
-
   const form = new FormData();
   for (const p of target.parameters) form.append(p.name, p.value);
   form.append('file', new Blob([fileBuffer]), filename);
   await fetch(target.url, { method: 'POST', body: form });
-
   const fileCreate = {
     query: `mutation fileCreate($files: [FileCreateInput!]!) {
       fileCreate(files: $files) { files { ... on GenericFile { url } } userErrors { message } }
@@ -62,42 +65,45 @@ async function uploadToShopify(filePath, filename) {
 
 app.post('/trim', anyFile, (req, res) => {
   const file = pickFile(req);
-  if (!file) return res.status(400).send('no file');
+  console.log('TRIM: file =', file ? file.originalname + ' / ' + file.size + ' bytes' : 'NONE');
+  if (!file) return res.status(400).send('no file received');
   const out = path.join(os.tmpdir(), `trim_${Date.now()}.mp3`);
   execFile('ffmpeg', ['-y', '-i', file.path, '-t', '50', '-acodec', 'copy', out], (err) => {
     fs.unlink(file.path, () => {});
-    if (err) return res.status(500).send('ffmpeg error: ' + err.message);
+    if (err) { console.log('FFMPEG ERROR:', err.message); return res.status(500).send('ffmpeg error: ' + err.message); }
     res.sendFile(out, () => fs.unlink(out, () => {}));
   });
 });
 
 app.post('/save_audio', anyFile, async (req, res) => {
   const file = pickFile(req);
-  if (!file) return res.status(400).send('no file');
+  if (!file) return res.status(400).send('no file received');
   const leadId = req.body.lead_id || 'unknown';
   try {
     const url = await uploadToShopify(file.path, `${leadId}.mp3`);
     fs.unlink(file.path, () => {});
     res.json({ lead_id: leadId, url });
-  } catch (e) {
-    res.status(500).send('upload error: ' + e.message);
-  }
+  } catch (e) { console.log('SAVE ERROR:', e.message); res.status(500).send('upload error: ' + e.message); }
 });
 
 app.post('/save_preview', anyFile, async (req, res) => {
   const file = pickFile(req);
-  if (!file) return res.status(400).send('no file');
+  if (!file) return res.status(400).send('no file received');
   const leadId = req.body.lead_id || 'unknown';
   try {
     const url = await uploadToShopify(file.path, `preview_${leadId}.mp3`);
     fs.unlink(file.path, () => {});
     res.json({ lead_id: leadId, url });
-  } catch (e) {
-    res.status(500).send('upload error: ' + e.message);
-  }
+  } catch (e) { console.log('SAVE ERROR:', e.message); res.status(500).send('upload error: ' + e.message); }
 });
 
 app.get('/', (req, res) => res.send('Melonia audio server OK'));
+
+// gestionnaire d'erreur global (capte les erreurs multer)
+app.use((err, req, res, next) => {
+  console.log('GLOBAL ERROR:', err.message);
+  res.status(400).send('error: ' + err.message);
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Server running on ' + PORT));
