@@ -38,19 +38,20 @@ function shopifyGraphQL(body) {
     body: JSON.stringify(body)
   }).then(r => r.json());
 }
+
 // cherche un fichier dans Shopify par son nom, renvoie son URL CDN si trouvé
 async function findFileUrl(filename) {
-  // Tente 3 stratégies de recherche pour maximiser les chances de match
+  const isPreview = filename.startsWith('preview_');
   const queries = [
-    `filename:${filename}`,                          // match exact
-    `filename:*${filename.replace('.mp3', '')}*`,    // match partiel sur le nom sans extension
-    filename.replace('.mp3', '')                     // recherche full-text
+    `filename:${filename}`,
+    `filename:*${filename.replace('.mp3', '')}*`,
+    filename.replace('.mp3', '')
   ];
 
   for (const queryStr of queries) {
     const q = {
       query: `query($query: String!) {
-        files(first: 10, query: $query) {
+        files(first: 20, query: $query) {
           edges { node { ... on GenericFile { url } } }
         }
       }`,
@@ -65,17 +66,15 @@ async function findFileUrl(filename) {
       }
       const edges = r.data && r.data.files && r.data.files.edges;
       if (edges && edges.length > 0) {
-        // Cherche d'abord un match exact sur le filename dans l'URL
+        // Cherche un match exact sur le filename dans l'URL,
+        // en excluant les fichiers preview_* quand on cherche la full song.
         for (const edge of edges) {
-          if (edge.node && edge.node.url && edge.node.url.includes(filename)) {
-            console.log(`FIND MATCH via "${queryStr}":`, edge.node.url);
-            return edge.node.url;
-          }
-        }
-        // Si aucun match exact, retourne le premier résultat (fallback)
-        if (edges[0].node && edges[0].node.url) {
-          console.log(`FIND fallback via "${queryStr}":`, edges[0].node.url);
-          return edges[0].node.url;
+          if (!edge.node || !edge.node.url) continue;
+          const url = edge.node.url;
+          if (!url.includes(filename)) continue;
+          if (!isPreview && url.includes('preview_')) continue; // skip previews when looking for full
+          console.log(`FIND MATCH via "${queryStr}":`, url);
+          return url;
         }
       }
     } catch (e) {
