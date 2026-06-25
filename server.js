@@ -29,13 +29,15 @@ app.use((req, res, next) => {
 });
 
 function shopifyGraphQL(body) {
+  const authHeader = TOKEN && TOKEN.startsWith('atkn_')
+    ? { 'Authorization': `Bearer ${TOKEN}` }
+    : { 'X-Shopify-Access-Token': TOKEN };
   return fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': TOKEN },
+    headers: { 'Content-Type': 'application/json', ...authHeader },
     body: JSON.stringify(body)
   }).then(r => r.json());
 }
-
 // cherche un fichier dans Shopify par son nom, renvoie son URL CDN si trouvé
 async function findFileUrl(filename) {
   // Tente 3 stratégies de recherche pour maximiser les chances de match
