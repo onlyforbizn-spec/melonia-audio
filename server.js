@@ -38,22 +38,50 @@ function shopifyGraphQL(body) {
 
 // cherche un fichier dans Shopify par son nom, renvoie son URL CDN si trouvé
 async function findFileUrl(filename) {
-  const q = {
-    query: `query($query: String!) {
-      files(first: 1, query: $query) {
-        edges { node { ... on GenericFile { url } } }
+  // Tente 3 stratégies de recherche pour maximiser les chances de match
+  const queries = [
+    `filename:${filename}`,                          // match exact
+    `filename:*${filename.replace('.mp3', '')}*`,    // match partiel sur le nom sans extension
+    filename.replace('.mp3', '')                     // recherche full-text
+  ];
+
+  for (const queryStr of queries) {
+    const q = {
+      query: `query($query: String!) {
+        files(first: 10, query: $query) {
+          edges { node { ... on GenericFile { url } } }
+        }
+      }`,
+      variables: { query: queryStr }
+    };
+    try {
+      const r = await shopifyGraphQL(q);
+      console.log(`FIND attempt "${queryStr}":`, JSON.stringify(r).substring(0, 500));
+      if (r.errors) {
+        console.log('FIND GraphQL errors:', JSON.stringify(r.errors));
+        continue;
       }
-    }`,
-    variables: { query: `filename:${filename}` }
-  };
-  try {
-    const r = await shopifyGraphQL(q);
-    const edge = r.data && r.data.files && r.data.files.edges[0];
-    return edge && edge.node && edge.node.url ? edge.node.url : null;
-  } catch (e) {
-    console.log('FIND ERROR:', e.message);
-    return null;
+      const edges = r.data && r.data.files && r.data.files.edges;
+      if (edges && edges.length > 0) {
+        // Cherche d'abord un match exact sur le filename dans l'URL
+        for (const edge of edges) {
+          if (edge.node && edge.node.url && edge.node.url.includes(filename)) {
+            console.log(`FIND MATCH via "${queryStr}":`, edge.node.url);
+            return edge.node.url;
+          }
+        }
+        // Si aucun match exact, retourne le premier résultat (fallback)
+        if (edges[0].node && edges[0].node.url) {
+          console.log(`FIND fallback via "${queryStr}":`, edges[0].node.url);
+          return edges[0].node.url;
+        }
+      }
+    } catch (e) {
+      console.log(`FIND ERROR for "${queryStr}":`, e.message);
+    }
   }
+  console.log(`FIND: no result for ${filename}`);
+  return null;
 }
 
 async function pollFileUrl(fileId) {
