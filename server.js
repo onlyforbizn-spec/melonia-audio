@@ -42,10 +42,12 @@ function shopifyGraphQL(body) {
 // cherche un fichier dans Shopify par son nom, renvoie son URL CDN si trouvé
 async function findFileUrl(filename) {
   const isPreview = filename.startsWith('preview_');
+  const isTxt = filename.endsWith('.txt');
+  const base = filename.replace(/\.(mp3|txt)$/, '');
   const queries = [
     `filename:${filename}`,
-    `filename:*${filename.replace('.mp3', '')}*`,
-    filename.replace('.mp3', '')
+    `filename:*${base}*`,
+    base
   ];
 
   for (const queryStr of queries) {
@@ -72,7 +74,7 @@ async function findFileUrl(filename) {
           if (!edge.node || !edge.node.url) continue;
           const url = edge.node.url;
           if (!url.includes(filename)) continue;
-          if (!isPreview && url.includes('preview_')) continue; // skip previews when looking for full
+          if (!isPreview && !isTxt && url.includes('preview_')) continue; // skip previews when looking for full mp3
           console.log(`FIND MATCH via "${queryStr}":`, url);
           return url;
         }
@@ -132,6 +134,39 @@ async function uploadToShopify(filePath, filename) {
   return finalUrl || target.resourceUrl;
 }
 
+async function uploadTextToShopify(filePath, filename) {
+  const fileBuffer = fs.readFileSync(filePath);
+  const size = fileBuffer.length;
+
+  const staged = await shopifyGraphQL({
+    query: `mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+      stagedUploadsCreate(input: $input) {
+        stagedTargets { url resourceUrl parameters { name value } }
+        userErrors { message }
+      }
+    }`,
+    variables: { input: [{ filename, mimeType: 'text/plain', resource: 'FILE', httpMethod: 'POST', fileSize: String(size) }] }
+  });
+  const target = staged.data.stagedUploadsCreate.stagedTargets[0];
+
+  const form = new FormData();
+  for (const p of target.parameters) form.append(p.name, p.value);
+  form.append('file', new Blob([fileBuffer]), filename);
+  await fetch(target.url, { method: 'POST', body: form });
+
+  const created = await shopifyGraphQL({
+    query: `mutation fileCreate($files: [FileCreateInput!]!) {
+      fileCreate(files: $files) { files { id ... on GenericFile { url } } userErrors { message } }
+    }`,
+    variables: { files: [{ originalSource: target.resourceUrl, contentType: 'FILE' }] }
+  });
+  const file = created.data.fileCreate.files[0];
+
+  let finalUrl = file && file.url;
+  if (!finalUrl && file && file.id) finalUrl = await pollFileUrl(file.id);
+  return finalUrl || target.resourceUrl;
+}
+
 app.post('/trim', anyFile, (req, res) => {
   const file = pickFile(req);
   console.log('TRIM: file =', file ? file.originalname + ' / ' + file.size + ' bytes' : 'NONE');
@@ -142,6 +177,39 @@ app.post('/trim', anyFile, (req, res) => {
     if (err) { console.log('FFMPEG ERROR:', err.message); return res.status(500).send('ffmpeg error: ' + err.message); }
     res.sendFile(out, () => fs.unlink(out, () => {}));
   });
+});
+
+// Sauvegarde des lyrics en .txt sur Shopify Files
+app.post('/save_lyrics', express.json(), async (req, res) => {
+  const leadId = req.body.lead_id;
+  const lyrics = req.body.lyrics;
+  if (!leadId || !lyrics) return res.status(400).json({ error: 'lead_id and lyrics required' });
+  try {
+    const tmpPath = path.join(os.tmpdir(), `${leadId}.txt`);
+    fs.writeFileSync(tmpPath, lyrics, 'utf8');
+    const url = await uploadTextToShopify(tmpPath, `${leadId}.txt`);
+    fs.unlink(tmpPath, () => {});
+    res.json({ lead_id: leadId, url });
+  } catch (e) {
+    console.log('SAVE_LYRICS ERROR:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// /lyrics : lit le .txt sur Shopify Files
+app.get('/lyrics', async (req, res) => {
+  const leadId = req.query.lead_id;
+  if (!leadId) return res.status(400).json({ ready: false, error: 'no lead_id' });
+  try {
+    const url = await findFileUrl(`${leadId}.txt`);
+    if (!url) return res.json({ ready: false });
+    const r = await fetch(url);
+    const text = await r.text();
+    res.json({ ready: true, lyrics: text, url });
+  } catch (e) {
+    console.log('LYRICS ERROR:', e.message);
+    res.json({ ready: false });
+  }
 });
 
 app.post('/save_audio', anyFile, async (req, res) => {
