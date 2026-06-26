@@ -139,58 +139,156 @@ function generateLyricsPDF(outPath, recipientName, lyrics) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'LETTER',
-      margins: { top: 72, bottom: 72, left: 72, right: 72 }
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
+      autoFirstPage: true
     });
     const stream = fs.createWriteStream(outPath);
     doc.pipe(stream);
 
     const CREAM = '#F4EEE5';
     const PLUM = '#3D1A33';
+    const PLUM_SOFT = '#6B3A5C';
     const pageW = doc.page.width;
     const pageH = doc.page.height;
 
-    // Fond crème + repeint sur chaque nouvelle page
-    const paintBackground = () => {
+    // Fond crème
+    doc.rect(0, 0, pageW, pageH).fill(CREAM);
+
+    // ========== ENCADREMENT ART DÉCO ==========
+    const M = 36;
+    const IM = 50;
+    // Double cadre fin
+    doc.lineWidth(1.2).strokeColor(PLUM)
+      .rect(M, M, pageW - 2 * M, pageH - 2 * M).stroke();
+    doc.lineWidth(0.4).strokeColor(PLUM)
+      .rect(M + 6, M + 6, pageW - 2 * (M + 6), pageH - 2 * (M + 6)).stroke();
+
+    // Ornements aux 4 coins (losanges + petits traits)
+    const drawCorner = (cx, cy, rotation) => {
       doc.save();
-      doc.rect(0, 0, pageW, pageH).fill(CREAM);
+      doc.translate(cx, cy).rotate(rotation);
+      doc.lineWidth(0.8).strokeColor(PLUM);
+      doc.moveTo(0, -4).lineTo(4, 0).lineTo(0, 4).lineTo(-4, 0).closePath().stroke();
+      doc.moveTo(-10, 0).lineTo(-6, 0).stroke();
+      doc.moveTo(6, 0).lineTo(10, 0).stroke();
+      doc.moveTo(0, -10).lineTo(0, -6).stroke();
+      doc.moveTo(0, 6).lineTo(0, 10).stroke();
       doc.restore();
-      doc.fillColor(PLUM);
     };
-    paintBackground();
-    doc.on('pageAdded', paintBackground);
+    drawCorner(M + 18, M + 18, 0);
+    drawCorner(pageW - M - 18, M + 18, Math.PI / 2);
+    drawCorner(pageW - M - 18, pageH - M - 18, Math.PI);
+    drawCorner(M + 18, pageH - M - 18, -Math.PI / 2);
 
-    // Header "Melonia"
-    doc.font('Times-Bold').fontSize(36).fillColor(PLUM)
-      .text('Melonia', { align: 'center' });
-    doc.moveDown(0.3);
+    // ========== HEADER ==========
+    let y = M + 60;
 
-    // Filet décoratif
-    const lineY = doc.y;
-    doc.moveTo(pageW / 2 - 30, lineY).lineTo(pageW / 2 + 30, lineY)
-      .lineWidth(0.7).strokeColor(PLUM).stroke();
-    doc.moveDown(1.2);
+    // Petit ornement floral au-dessus du titre (3 losanges + lignes)
+    const ornY = y;
+    doc.lineWidth(0.6).strokeColor(PLUM_SOFT);
+    const cx = pageW / 2;
+    doc.fillColor(PLUM).moveTo(cx, ornY - 4).lineTo(cx + 4, ornY).lineTo(cx, ornY + 4).lineTo(cx - 4, ornY).closePath().fill();
+    doc.strokeColor(PLUM).moveTo(cx - 18, ornY - 3).lineTo(cx - 15, ornY).lineTo(cx - 18, ornY + 3).lineTo(cx - 21, ornY).closePath().stroke();
+    doc.moveTo(cx + 18, ornY - 3).lineTo(cx + 21, ornY).lineTo(cx + 18, ornY + 3).lineTo(cx + 15, ornY).closePath().stroke();
+    doc.moveTo(cx - 35, ornY).lineTo(cx - 23, ornY).stroke();
+    doc.moveTo(cx + 23, ornY).lineTo(cx + 35, ornY).stroke();
+    doc.moveTo(cx - 13, ornY).lineTo(cx - 6, ornY).stroke();
+    doc.moveTo(cx + 6, ornY).lineTo(cx + 13, ornY).stroke();
 
-    // Subtitle "A Song for X"
-    doc.font('Times-Italic').fontSize(20).fillColor(PLUM)
-      .text(`A Song for ${recipientName}`, { align: 'center' });
-    doc.moveDown(2);
+    y += 22;
 
-    // Lyrics : strophes séparées par lignes vides
-    doc.font('Times-Roman').fontSize(12).fillColor(PLUM);
-    const stanzas = String(lyrics).split(/\n\s*\n/);
+    // Titre "Melonia"
+    doc.font('Times-Bold').fontSize(42).fillColor(PLUM)
+      .text('Melonia', M, y, { width: pageW - 2 * M, align: 'center' });
+    y += 52;
+
+    // Sous-titre cartouche "A Song for [Name]"
+    const cartoucheY = y;
+    const cartoucheH = 38;
+    const cartoucheW = 280;
+    const cartoucheX = (pageW - cartoucheW) / 2;
+    doc.fillColor(PLUM).opacity(0.06)
+      .rect(cartoucheX, cartoucheY, cartoucheW, cartoucheH).fill();
+    doc.opacity(1);
+    doc.lineWidth(0.5).strokeColor(PLUM)
+      .rect(cartoucheX, cartoucheY, cartoucheW, cartoucheH).stroke();
+    const triY = cartoucheY + cartoucheH / 2;
+    doc.fillColor(PLUM);
+    doc.moveTo(cartoucheX - 8, triY).lineTo(cartoucheX, triY - 5).lineTo(cartoucheX, triY + 5).closePath().fill();
+    doc.moveTo(cartoucheX + cartoucheW + 8, triY).lineTo(cartoucheX + cartoucheW, triY - 5).lineTo(cartoucheX + cartoucheW, triY + 5).closePath().fill();
+    doc.fillColor(PLUM).font('Times-Italic').fontSize(18)
+      .text(`A Song for ${recipientName}`, cartoucheX, cartoucheY + 11,
+        { width: cartoucheW, align: 'center' });
+
+    y = cartoucheY + cartoucheH + 28;
+
+    // ========== LYRICS (auto-fit sur 1 page) ==========
+    const footerSpace = 70;
+    const lyricsTop = y;
+    const lyricsBottom = pageH - M - footerSpace;
+    const lyricsHeight = lyricsBottom - lyricsTop;
+    const lyricsLeft = M + IM;
+    const lyricsWidth = pageW - 2 * (M + IM);
+
+    const stanzas = String(lyrics).split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+
+    const sizes = [13, 12, 11, 10.5, 10, 9.5, 9, 8.5, 8];
+    let chosenSize = 8;
+    let chosenLineGap = 3;
+    let chosenStanzaGap = 12;
+
+    for (const size of sizes) {
+      const lineGap = size < 10 ? 2 : 3;
+      const stanzaGap = size < 10 ? 8 : 12;
+      doc.font('Times-Roman').fontSize(size);
+      let total = 0;
+      stanzas.forEach((stanza, i) => {
+        const h = doc.heightOfString(stanza, { width: lyricsWidth, align: 'center', lineGap });
+        total += h;
+        if (i < stanzas.length - 1) total += stanzaGap;
+      });
+      if (total <= lyricsHeight) {
+        chosenSize = size;
+        chosenLineGap = lineGap;
+        chosenStanzaGap = stanzaGap;
+        break;
+      }
+    }
+
+    doc.font('Times-Roman').fontSize(chosenSize);
+    let realTotal = 0;
     stanzas.forEach((stanza, i) => {
-      const text = stanza.trim();
-      if (!text) return;
-      doc.text(text, { align: 'center', lineGap: 4 });
-      if (i < stanzas.length - 1) doc.moveDown(1);
+      realTotal += doc.heightOfString(stanza, { width: lyricsWidth, align: 'center', lineGap: chosenLineGap });
+      if (i < stanzas.length - 1) realTotal += chosenStanzaGap;
+    });
+    let cursorY = lyricsTop + Math.max(0, (lyricsHeight - realTotal) / 2);
+
+    doc.fillColor(PLUM);
+    stanzas.forEach((stanza, i) => {
+      doc.text(stanza, lyricsLeft, cursorY, { width: lyricsWidth, align: 'center', lineGap: chosenLineGap });
+      const h = doc.heightOfString(stanza, { width: lyricsWidth, align: 'center', lineGap: chosenLineGap });
+      cursorY += h + (i < stanzas.length - 1 ? chosenStanzaGap : 0);
     });
 
-    // Footer
-    doc.moveDown(2.5);
-    doc.font('Times-Italic').fontSize(9).fillColor(PLUM)
-      .text('Created with love by the Melonia team — melonia-song.com', {
-        align: 'center'
-      });
+    // ========== FOOTER ==========
+    const footerY = pageH - M - 40;
+
+    doc.lineWidth(0.6).strokeColor(PLUM_SOFT);
+    const waveCx = pageW / 2;
+    const waveY = footerY;
+    doc.moveTo(waveCx - 40, waveY)
+      .bezierCurveTo(waveCx - 30, waveY - 4, waveCx - 20, waveY + 4, waveCx - 10, waveY)
+      .bezierCurveTo(waveCx, waveY - 4, waveCx + 10, waveY + 4, waveCx + 20, waveY)
+      .bezierCurveTo(waveCx + 30, waveY - 4, waveCx + 35, waveY, waveCx + 40, waveY)
+      .stroke();
+    doc.fillColor(PLUM).moveTo(waveCx, waveY - 3).lineTo(waveCx + 3, waveY).lineTo(waveCx, waveY + 3).lineTo(waveCx - 3, waveY).closePath().fill();
+
+    doc.fillColor(PLUM_SOFT).font('Times-Italic').fontSize(9)
+      .text('Created with love by the Melonia team', M, footerY + 14,
+        { width: pageW - 2 * M, align: 'center' });
+    doc.fillColor(PLUM).font('Times-Roman').fontSize(9)
+      .text('melonia-song.com', M, footerY + 26,
+        { width: pageW - 2 * M, align: 'center' });
 
     doc.end();
     stream.on('finish', resolve);
