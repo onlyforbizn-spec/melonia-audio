@@ -463,6 +463,19 @@ app.get('/pixel', (req, res) => {
   res.end(PIXEL_GIF);
 });
 
+// Diagnostic sûr (aucun secret exposé) : que voit le serveur dans son environnement ?
+app.get('/track/debug', (req, res) => {
+  const relevantKeys = Object.keys(process.env).filter(k => /DATA|PG|POSTGRES|RAIL/i.test(k));
+  const u = process.env.DATABASE_URL || '';
+  res.json({
+    has_database_url: !!process.env.DATABASE_URL,
+    url_prefix: u.slice(0, 18),   // "postgresql://postg" — pas de mot de passe
+    url_length: u.length,
+    pool_exists: !!pool,
+    relevant_env_keys: relevantKeys
+  });
+});
+
 // Petit check analytics (compte d'événements) — pratique pour vérifier que ça log
 app.get('/track/health', async (req, res) => {
   if (!pool) return res.json({ db: false });
