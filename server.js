@@ -5,7 +5,6 @@ const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { Pool } = require('pg');
 
 const app = express();
 const upload = multer({ dest: os.tmpdir() });
@@ -15,44 +14,6 @@ app.use(express.json({ limit: '10mb' }));
 const SHOP = process.env.SHOPIFY_SHOP;
 const TOKEN = process.env.SHOPIFY_TOKEN;
 const API = '2026-04';
-
-// =========== Analytics DB (optionnelle — n'affecte JAMAIS le pipeline audio) ===========
-// Si DATABASE_URL est absent, tout le serveur fonctionne exactement comme avant.
-const DB_URL = process.env.DATABASE_URL;
-const pool = DB_URL
-  ? new Pool({
-      connectionString: DB_URL,
-      // SSL requis seulement si on passe par l'URL publique de Railway (pas l'interne)
-      ssl: /proxy\.rlwy\.net|\.railway\.app/.test(DB_URL) ? { rejectUnauthorized: false } : false
-    })
-  : null;
-
-async function initAnalyticsDb() {
-  if (!pool) { console.log('ANALYTICS: no DATABASE_URL -> tracking disabled (audio pipeline unaffected)'); return; }
-  try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS events (
-      id BIGSERIAL PRIMARY KEY,
-      lead_id TEXT,
-      event_type TEXT NOT NULL,
-      ts TIMESTAMPTZ NOT NULL DEFAULT now(),
-      metadata JSONB
-    )`);
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_events_lead ON events(lead_id)');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type)');
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)');
-    console.log('ANALYTICS: DB ready (table events)');
-  } catch (e) { console.log('ANALYTICS DB INIT ERROR:', e.message); }
-}
-initAnalyticsDb();
-
-// Insertion d'un événement — silencieuse et non bloquante (ne casse jamais une requête)
-function logEvent(leadId, eventType, metadata) {
-  if (!pool || !eventType) return Promise.resolve();
-  return pool
-    .query('INSERT INTO events (lead_id, event_type, metadata) VALUES ($1, $2, $3)',
-      [leadId || null, eventType, metadata ? JSON.stringify(metadata) : null])
-    .catch(e => console.log('ANALYTICS LOG ERROR:', e.message));
-}
 
 function pickFile(req) {
   if (req.file) return req.file;
@@ -440,51 +401,7 @@ app.get('/pdf', async (req, res) => {
   } catch (e) { console.log('PDF ERROR:', e.message); res.json({ ready: false }); }
 });
 
-// =========== Analytics endpoints ===========
-
-// Reçoit un événement générique { lead_id, event_type, metadata }
-// Utilisé par : page preview (écoutes), n8n (style/occasion/génération), webhook achat.
-app.post('/track', async (req, res) => {
-  const { lead_id, event_type, metadata } = req.body || {};
-  if (!event_type) return res.status(400).json({ ok: false, error: 'event_type required' });
-  await logEvent(lead_id, event_type, metadata);
-  res.json({ ok: true });
-});
-
-// Pixel transparent 1x1 pour le tracking d'ouverture d'email (inséré dans les mails n8n)
-// Ex : <img src="https://.../pixel?lead_id=MLN-XXXX&type=email_open_preview" width="1" height="1">
-const PIXEL_GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
-app.get('/pixel', (req, res) => {
-  const { lead_id, type } = req.query;
-  logEvent(lead_id, type || 'email_open', null); // non bloquant
-  res.setHeader('Content-Type', 'image/gif');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.setHeader('Pragma', 'no-cache');
-  res.end(PIXEL_GIF);
-});
-
-// Diagnostic sûr (aucun secret exposé) : que voit le serveur dans son environnement ?
-app.get('/track/debug', (req, res) => {
-  res.json({
-    has_database_url: !!process.env.DATABASE_URL,
-    has_shopify_token: !!process.env.SHOPIFY_TOKEN,
-    pool_exists: !!pool,
-    running_commit: (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7) || null,
-    running_commit_msg: process.env.RAILWAY_GIT_COMMIT_MESSAGE || null,
-    all_env_keys: Object.keys(process.env).sort()   // NOMS uniquement, aucune valeur
-  });
-});
-
-// Petit check analytics (compte d'événements) — pratique pour vérifier que ça log
-app.get('/track/health', async (req, res) => {
-  if (!pool) return res.json({ db: false });
-  try {
-    const r = await pool.query('SELECT count(*)::int AS n FROM events');
-    res.json({ db: true, events: r.rows[0].n });
-  } catch (e) { res.json({ db: true, error: e.message }); }
-});
-
-app.get('/', (req, res) => res.send('Melonia audio server OK — analytics ' + (pool ? 'ON' : 'off') + ' [b3]'));
+app.get('/', (req, res) => res.send('Melonia audio server OK'));
 
 app.use((err, req, res, next) => {
   console.log('GLOBAL ERROR:', err.message);
