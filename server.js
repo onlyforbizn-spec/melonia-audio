@@ -484,7 +484,7 @@ app.get('/track/health', async (req, res) => {
   } catch (e) { res.json({ db: true, error: e.message }); }
 });
 
-app.get('/', (req, res) => res.send('Melonia audio server OK — analytics ' + (pool ? 'on' : 'off')));
+app.get('/', (req, res) => res.send('Melonia audio server OK — analytics ' + (pool ? 'ON' : 'off') + ' [b3]'));
 
 app.use((err, req, res, next) => {
   console.log('GLOBAL ERROR:', err.message);
