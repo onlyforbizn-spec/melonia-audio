@@ -465,14 +465,13 @@ app.get('/pixel', (req, res) => {
 
 // Diagnostic sûr (aucun secret exposé) : que voit le serveur dans son environnement ?
 app.get('/track/debug', (req, res) => {
-  const relevantKeys = Object.keys(process.env).filter(k => /DATA|PG|POSTGRES|RAIL/i.test(k));
-  const u = process.env.DATABASE_URL || '';
   res.json({
     has_database_url: !!process.env.DATABASE_URL,
-    url_prefix: u.slice(0, 18),   // "postgresql://postg" — pas de mot de passe
-    url_length: u.length,
+    has_shopify_token: !!process.env.SHOPIFY_TOKEN,
     pool_exists: !!pool,
-    relevant_env_keys: relevantKeys
+    running_commit: (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7) || null,
+    running_commit_msg: process.env.RAILWAY_GIT_COMMIT_MESSAGE || null,
+    all_env_keys: Object.keys(process.env).sort()   // NOMS uniquement, aucune valeur
   });
 });
 
