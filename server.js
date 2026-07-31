@@ -395,6 +395,63 @@ app.post('/replace_audio', anyFile, async (req, res) => {
   }
 });
 
+// Persiste des métadonnées de chanson par Lead ID dans un fichier Shopify `${lead_id}.meta.json`.
+// Sert au post-achat "3rd verse" : on y garde l'ID du clip Suno + la durée + le style pour pouvoir
+// appeler Suno Extend plus tard. Merge : relit le meta existant et fusionne les nouveaux champs
+// (le workflow Suno écrit l'audio_id ; le workflow 3rd Verse ajoute third_verse_status sans écraser).
+app.post('/save_meta', async (req, res) => {
+  const body = req.body || {};
+  const leadId = body.lead_id;
+  if (!leadId) return res.status(400).json({ error: 'lead_id required' });
+  const filename = `${leadId}.meta.json`;
+  try {
+    // relire l'existant pour merge
+    let current = {};
+    const existing = await findFileNode(filename);
+    if (existing && existing.url) {
+      try {
+        const r = await fetch(existing.url);
+        if (r.ok) current = await r.json();
+      } catch (e) { console.log('META read old failed:', e.message); }
+    }
+    const merged = { ...current, ...body, lead_id: leadId, updated_at: new Date().toISOString() };
+    // supprimer l'ancien puis réuploader (Shopify n'écrase pas par nom)
+    if (existing && existing.id) {
+      await deleteShopifyFile(existing.id);
+      for (let i = 0; i < 8; i++) {
+        const still = await findFileNode(filename);
+        if (!still) break;
+        await new Promise(r => setTimeout(r, 1200));
+      }
+    }
+    const tmp = path.join(os.tmpdir(), `${leadId}_meta_${Date.now()}.json`);
+    fs.writeFileSync(tmp, JSON.stringify(merged), 'utf8');
+    const url = await uploadToShopify(tmp, filename, 'application/json');
+    fs.unlink(tmp, () => {});
+    res.json({ lead_id: leadId, url, meta: merged });
+  } catch (e) {
+    console.log('SAVE META ERROR:', e.message);
+    res.status(500).send('meta error: ' + e.message);
+  }
+});
+
+// Lit le meta d'un Lead ID et renvoie son contenu JSON (pour le workflow 3rd Verse).
+app.get('/meta', async (req, res) => {
+  const leadId = req.query.lead_id;
+  if (!leadId) return res.status(400).json({ ready: false, error: 'no lead_id' });
+  try {
+    const node = await findFileNode(`${leadId}.meta.json`);
+    if (!node || !node.url) return res.json({ ready: false });
+    const r = await fetch(node.url);
+    if (!r.ok) return res.json({ ready: false });
+    const meta = await r.json();
+    res.json({ ready: true, meta });
+  } catch (e) {
+    console.log('GET META ERROR:', e.message);
+    res.json({ ready: false });
+  }
+});
+
 app.post('/save_preview', anyFile, async (req, res) => {
   const file = pickFile(req);
   if (!file) return res.status(400).send('no file received');
