@@ -86,6 +86,50 @@ async function findFileUrl(filename) {
   return null;
 }
 
+// cherche un fichier dans Shopify par son nom, renvoie { id, url } si trouvé (pour pouvoir le supprimer)
+async function findFileNode(filename) {
+  const isPreview = filename.startsWith('preview_');
+  const baseName = filename.replace(/\.[^.]+$/, '');
+  const queries = [`filename:${filename}`, `filename:*${baseName}*`, baseName];
+  for (const queryStr of queries) {
+    const q = {
+      query: `query($query: String!) {
+        files(first: 20, query: $query) {
+          edges { node { id ... on GenericFile { url } } }
+        }
+      }`,
+      variables: { query: queryStr }
+    };
+    try {
+      const r = await shopifyGraphQL(q);
+      if (r.errors) { console.log('FINDNODE errors:', JSON.stringify(r.errors)); continue; }
+      const edges = r.data && r.data.files && r.data.files.edges;
+      if (edges && edges.length) {
+        for (const edge of edges) {
+          if (!edge.node || !edge.node.url) continue;
+          const url = edge.node.url;
+          if (!url.includes(filename)) continue;
+          if (!isPreview && url.includes('preview_')) continue;
+          return { id: edge.node.id, url };
+        }
+      }
+    } catch (e) { console.log(`FINDNODE ERROR for "${queryStr}":`, e.message); }
+  }
+  return null;
+}
+
+async function deleteShopifyFile(fileId) {
+  const r = await shopifyGraphQL({
+    query: `mutation fileDelete($fileIds: [ID!]!) {
+      fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { message } }
+    }`,
+    variables: { fileIds: [fileId] }
+  });
+  const errs = r.data && r.data.fileDelete && r.data.fileDelete.userErrors;
+  if (errs && errs.length) console.log('DELETE userErrors:', JSON.stringify(errs));
+  return r.data && r.data.fileDelete && r.data.fileDelete.deletedFileIds;
+}
+
 async function pollFileUrl(fileId) {
   const q = {
     query: `query($id: ID!) { node(id: $id) { ... on GenericFile { url } } }`,
@@ -319,6 +363,36 @@ app.post('/save_audio', anyFile, async (req, res) => {
     fs.unlink(file.path, () => {});
     res.json({ lead_id: leadId, url });
   } catch (e) { console.log('SAVE ERROR:', e.message); res.status(500).send('upload error: ' + e.message); }
+});
+
+// Remplace la chanson complète existante (MLN-XXX.mp3) par une nouvelle version (ex. 3rd verse étendu).
+// Shopify ne permet pas d'écraser : on supprime l'ancien fichier puis on ré-uploade sous le même nom,
+// pour que /full et la page your-song servent immédiatement la version étendue (aucune modif front).
+app.post('/replace_audio', anyFile, async (req, res) => {
+  const file = pickFile(req);
+  if (!file) return res.status(400).send('no file received');
+  const leadId = req.body.lead_id || 'unknown';
+  const filename = `${leadId}.mp3`;
+  try {
+    // 1) supprimer l'ancien fichier s'il existe
+    const existing = await findFileNode(filename);
+    if (existing && existing.id) {
+      await deleteShopifyFile(existing.id);
+      // 2) attendre que la suppression se propage (sinon Shopify renommerait le nouveau fichier)
+      for (let i = 0; i < 8; i++) {
+        const still = await findFileNode(filename);
+        if (!still) break;
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+    // 3) uploader la nouvelle version sous le même nom
+    const url = await uploadToShopify(file.path, filename, 'audio/mpeg');
+    fs.unlink(file.path, () => {});
+    res.json({ lead_id: leadId, url, replaced: !!(existing && existing.id) });
+  } catch (e) {
+    console.log('REPLACE ERROR:', e.message);
+    res.status(500).send('replace error: ' + e.message);
+  }
 });
 
 app.post('/save_preview', anyFile, async (req, res) => {
