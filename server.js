@@ -562,6 +562,14 @@ app.get('/pdf', async (req, res) => {
   } catch (e) { console.log('PDF ERROR:', e.message); res.json({ ready: false }); }
 });
 
+// Widget de révision d'extrait (self-injecting). Chargé par les pages d'écoute via
+// <script src="/revision-widget.js?theme=pv|vsl&gate=off">. CORS déjà ouvert (*) plus haut.
+app.get('/revision-widget.js', (req, res) => {
+  res.type('application/javascript');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.sendFile(path.join(__dirname, 'revision-widget.js'));
+});
+
 app.get('/', (req, res) => res.send('Melonia audio server OK'));
 
 app.use((err, req, res, next) => {
