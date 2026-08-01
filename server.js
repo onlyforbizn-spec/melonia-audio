@@ -566,7 +566,7 @@ app.get('/pdf', async (req, res) => {
 // <script src="/revision-widget.js?theme=pv|vsl&gate=off">. CORS déjà ouvert (*) plus haut.
 app.get('/revision-widget.js', (req, res) => {
   res.type('application/javascript');
-  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.setHeader('Cache-Control', 'no-store, max-age=0'); // pas de cache pendant l'itération design
   res.sendFile(path.join(__dirname, 'revision-widget.js'));
 });
 
