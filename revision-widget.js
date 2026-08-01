@@ -17,6 +17,13 @@
   var leadId = (qp('lead') || qp('lead_id') || qp('id') || '').trim().toUpperCase();
   var briefEmail = qp('be') || '';
 
+  // Peut être collé N'IMPORTE OÙ dans la page : on attend que le DOM soit prêt
+  // avant de chercher le lecteur et de s'insérer dessous.
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', run); }
+  else { run(); }
+
+  function run() {
+
   var CSS = [
 '.mlnrev{--mlnrev-radius:16px;font-family:var(--mlnrev-font-body);color:var(--mlnrev-text);margin:14px 0 8px}',
 '.mlnrev *{box-sizing:border-box}',
@@ -185,4 +192,6 @@
       .then(function () { clearTimeout(t); showDone(); })
       .catch(function () { clearTimeout(t); showDone(); });
   });
+
+  } // fin run()
 })();
