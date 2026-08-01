@@ -25,7 +25,9 @@
   }
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', fixHeading); } else { fixHeading(); }
 
-  if (!GATEOFF && qp('rev') !== '1') return;
+  // Porte de test retirée au go-live (2 août 2026) : le widget s'affiche pour tous les clients
+  // sur toute page où le <script> est embarqué. (GATEOFF/?rev=1 conservés mais plus requis.)
+  void GATEOFF;
 
   var leadId = (qp('lead') || qp('lead_id') || qp('id') || '').trim().toUpperCase();
   var briefEmail = qp('be') || '';
