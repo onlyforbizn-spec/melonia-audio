@@ -6,7 +6,8 @@
 (function () {
   var me = document.currentScript;
   var sq; try { sq = new URL(me.src).searchParams; } catch (e) { sq = new URLSearchParams(); }
-  var THEME = sq.get('theme') || 'pv';
+  // thème auto-détecté (page VSL prune vs page preview orange) — surchargableté via ?theme=
+  var THEME = sq.get('theme') || (document.querySelector('.mln-press-play, #mln-timer-clock, .mln-generating') ? 'vsl' : 'pv');
   var GATEOFF = sq.get('gate') === 'off';
   var WEBHOOK = 'https://n8n.melodineapi.com/webhook/melonia-revision';
 
@@ -104,7 +105,10 @@
   var root = document.createElement('div');
   root.className = 'mlnrev'; root.setAttribute('data-theme', THEME);
   root.innerHTML = HTML;
-  me.parentNode.insertBefore(root, me);
+  // Placement auto : juste sous le lecteur (.mln-player-card). Sinon, là où est le script.
+  var anchor = document.querySelector('.mln-player-card');
+  if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(root, anchor.nextSibling);
+  else me.parentNode.insertBefore(root, me);
 
   var trigger = root.querySelector('.mlnrev-trigger');
   var fieldsEl = root.querySelector('.mlnrev-fields');
