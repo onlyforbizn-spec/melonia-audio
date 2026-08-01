@@ -39,12 +39,12 @@
     var murl = 'https://melonia-audio-production.up.railway.app/meta?lead_id=' + encodeURIComponent(leadId);
     fetch(murl).then(function (r) { return r.json(); }).then(function (d) {
       var c = (d && d.meta && Number(d.meta.revision_count)) || 0;
-      if (c >= LIMIT) return; // limite atteinte -> pas de widget
+      if (c >= LIMIT) { inject(true); return; } // limite atteinte -> message, pas de formulaire
       inject();
     }).catch(function () { inject(); }); // meta indispo -> on affiche quand même
   }
 
-  function inject() {
+  function inject(atLimit) {
 
   var CSS = [
 '.mlnrev{font-family:var(--mlnrev-font-body);color:var(--mlnrev-text);position:relative;overflow:hidden;background:var(--mlnrev-section-bg);border:1px solid var(--mlnrev-border);border-radius:26px;padding:52px 34px 48px;margin:10px 0 34px;box-shadow:0 14px 44px var(--mlnrev-shadow)}',
@@ -134,9 +134,14 @@
   + '<h4>On it — your new preview is on the way</h4>'
   + '<p>We\'ll email it to <span class="mail">your inbox</span> in about <b>20 minutes</b>.</p></div>';
 
+  var LIMITHTML =
+    '<div class="mlnrev-done"><div class="badge">✓</div>'
+  + '<h4>You\'ve used all your revisions</h4>'
+  + '<p>You\'ve reached the <b>3 revisions</b> included with your song. The version we just sent you is your final one — we hope you love it.</p></div>';
+
   var root = document.createElement('div');
   root.className = 'mlnrev'; root.setAttribute('data-theme', THEME);
-  root.innerHTML = HTML;
+  root.innerHTML = atLimit ? LIMITHTML : HTML;
 
   var before = document.querySelector('.mln-included') || document.querySelector('#mln-reviews') || document.querySelector('.mln-testimonials');
   if (before && before.parentNode) { before.parentNode.insertBefore(root, before); }
@@ -145,6 +150,8 @@
     if (pc && pc.parentNode) pc.parentNode.insertBefore(root, pc.nextSibling);
     else me.parentNode.insertBefore(root, me);
   }
+
+  if (atLimit) return; // message "limite atteinte" affiché -> pas de formulaire à câbler
 
   var hero = root.querySelector('.mlnrev-hero');
   var form = root.querySelector('.mlnrev-form');
