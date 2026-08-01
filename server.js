@@ -505,6 +505,33 @@ app.post('/save_lyrics', async (req, res) => {
   } catch (e) { console.log('SAVE LYRICS ERROR:', e.message); res.status(500).send('upload error: ' + e.message); }
 });
 
+// Remplace le fichier paroles existant (MLN-XXX.txt) — après une révision, pour garder les paroles
+// en phase avec l'audio. Shopify n'écrase pas -> delete puis re-upload sous le même nom.
+app.post('/replace_lyrics', async (req, res) => {
+  const { lead_id, lyrics } = req.body || {};
+  if (!lead_id || !lyrics) return res.status(400).json({ error: 'lead_id and lyrics required' });
+  const filename = `${lead_id}.txt`;
+  try {
+    const existing = await findFileNode(filename);
+    if (existing && existing.id) {
+      await deleteShopifyFile(existing.id);
+      for (let i = 0; i < 8; i++) {
+        const still = await findFileNode(filename);
+        if (!still) break;
+        await new Promise(r => setTimeout(r, 1200));
+      }
+    }
+    const tmp = path.join(os.tmpdir(), `${lead_id}_lyr_${Date.now()}.txt`);
+    fs.writeFileSync(tmp, String(lyrics), 'utf8');
+    const url = await uploadToShopify(tmp, filename, 'text/plain');
+    fs.unlink(tmp, () => {});
+    res.json({ lead_id, url, replaced: !!(existing && existing.id) });
+  } catch (e) {
+    console.log('REPLACE LYRICS ERROR:', e.message);
+    res.status(500).send('replace lyrics error: ' + e.message);
+  }
+});
+
 app.post('/save_pdf', async (req, res) => {
   const { lead_id, recipient_name, lyrics } = req.body || {};
   if (!lead_id || !recipient_name || !lyrics) {
