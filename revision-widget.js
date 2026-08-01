@@ -20,7 +20,18 @@
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', run); }
   else { run(); }
 
+  var LIMIT = 3; // nombre max de révisions par client
+  // On lit le compteur de révisions dans le meta ; à LIMIT atteint, le widget ne s'affiche plus.
   function run() {
+    var murl = 'https://melonia-audio-production.up.railway.app/meta?lead_id=' + encodeURIComponent(leadId);
+    fetch(murl).then(function (r) { return r.json(); }).then(function (d) {
+      var c = (d && d.meta && Number(d.meta.revision_count)) || 0;
+      if (c >= LIMIT) return; // limite atteinte -> pas de widget
+      inject();
+    }).catch(function () { inject(); }); // meta indispo -> on affiche quand même
+  }
+
+  function inject() {
 
   var CSS = [
 '.mlnrev{font-family:var(--mlnrev-font-body);color:var(--mlnrev-text);position:relative;overflow:hidden;background:var(--mlnrev-section-bg);border:1px solid var(--mlnrev-border);border-radius:26px;padding:52px 34px 48px;margin:10px 0 34px;box-shadow:0 14px 44px var(--mlnrev-shadow)}',
@@ -198,5 +209,5 @@
       .catch(function () { clearTimeout(t); showDone(); });
   });
 
-  } // fin run()
+  } // fin inject()
 })();
