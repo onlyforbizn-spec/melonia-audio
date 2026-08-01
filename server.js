@@ -463,6 +463,36 @@ app.post('/save_preview', anyFile, async (req, res) => {
   } catch (e) { console.log('SAVE ERROR:', e.message); res.status(500).send('upload error: ' + e.message); }
 });
 
+// Remplace l'extrait 90s existant (preview_MLN-XXX.mp3) par une nouvelle version (révision client).
+// Même logique que /replace_audio : Shopify n'écrase pas par nom -> delete puis re-upload sous le même
+// nom, pour que /ready et la page preview servent aussitôt le nouvel extrait (aucune modif front).
+app.post('/replace_preview', anyFile, async (req, res) => {
+  const file = pickFile(req);
+  if (!file) return res.status(400).send('no file received');
+  const leadId = req.body.lead_id || 'unknown';
+  const filename = `preview_${leadId}.mp3`;
+  try {
+    // 1) supprimer l'ancien extrait s'il existe
+    const existing = await findFileNode(filename);
+    if (existing && existing.id) {
+      await deleteShopifyFile(existing.id);
+      // 2) attendre que la suppression se propage (sinon Shopify renomme le nouveau fichier)
+      for (let i = 0; i < 8; i++) {
+        const still = await findFileNode(filename);
+        if (!still) break;
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+    // 3) uploader le nouvel extrait sous le même nom
+    const url = await uploadToShopify(file.path, filename, 'audio/mpeg');
+    fs.unlink(file.path, () => {});
+    res.json({ lead_id: leadId, url, replaced: !!(existing && existing.id) });
+  } catch (e) {
+    console.log('REPLACE PREVIEW ERROR:', e.message);
+    res.status(500).send('replace preview error: ' + e.message);
+  }
+});
+
 app.post('/save_lyrics', async (req, res) => {
   const { lead_id, lyrics } = req.body || {};
   if (!lead_id || !lyrics) return res.status(400).json({ error: 'lead_id and lyrics required' });
