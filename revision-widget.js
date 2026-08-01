@@ -23,13 +23,13 @@
   function run() {
 
   var CSS = [
-'.mlnrev{font-family:var(--mlnrev-font-body);color:var(--mlnrev-text);position:relative;overflow:hidden;background:var(--mlnrev-section-bg);border:1px solid var(--mlnrev-border);border-radius:26px;padding:40px 30px 38px;margin:8px 0 30px;box-shadow:0 14px 44px var(--mlnrev-shadow)}',
+'.mlnrev{font-family:var(--mlnrev-font-body);color:var(--mlnrev-text);position:relative;overflow:hidden;background:var(--mlnrev-section-bg);border:1px solid var(--mlnrev-border);border-radius:26px;padding:52px 34px 48px;margin:10px 0 34px;box-shadow:0 14px 44px var(--mlnrev-shadow)}',
 '.mlnrev *{box-sizing:border-box}',
 '.mlnrev::before{content:"";position:absolute;top:0;left:0;right:0;height:7px;background:var(--mlnrev-accent)}',
-'.mlnrev-badges{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin-bottom:20px}',
-'.mlnrev-badge{display:inline-flex;align-items:center;gap:7px;background:var(--mlnrev-accent-tint);color:var(--mlnrev-accent-deep);font-weight:700;font-size:14px;letter-spacing:.2px;padding:9px 16px;border-radius:999px}',
-'.mlnrev-title{font-family:var(--mlnrev-font-head);font-weight:700;font-size:clamp(25px,6.4vw,32px);letter-spacing:-.4px;text-align:center;color:var(--mlnrev-ink);line-height:1.2;margin:0 0 14px}',
-'.mlnrev-sub{text-align:center;color:var(--mlnrev-muted);font-size:17px;line-height:1.6;margin:0 auto 28px;max-width:400px}',
+'.mlnrev-badges{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin:0 0 28px}',
+'.mlnrev-badge{display:inline-flex;align-items:center;gap:7px;background:var(--mlnrev-accent-tint);color:var(--mlnrev-accent-deep);font-weight:700;font-size:14px;letter-spacing:.2px;padding:10px 18px;border-radius:999px}',
+'.mlnrev-title{font-family:var(--mlnrev-font-head);font-weight:700;font-size:clamp(25px,6.4vw,32px);letter-spacing:-.4px;text-align:center;color:var(--mlnrev-ink);line-height:1.25;margin:0 0 18px}',
+'.mlnrev-sub{text-align:center;color:var(--mlnrev-muted);font-size:17px;line-height:1.65;margin:0 auto 34px;max-width:380px}',
 '.mlnrev-sub b{color:var(--mlnrev-accent-deep);font-weight:700}',
 '.mlnrev-cta{width:100%;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;background:var(--mlnrev-accent);color:var(--mlnrev-accent-ink);border:none;border-radius:16px;padding:21px 22px;font-family:var(--mlnrev-font-body);font-size:18.5px;font-weight:800;letter-spacing:.2px;box-shadow:0 14px 32px var(--mlnrev-cta-shadow);transition:transform .12s ease,filter .15s ease,opacity .15s ease}',
 '.mlnrev-cta svg{display:block}',
@@ -75,7 +75,9 @@
 '.mlnrev[data-theme="vsl"]{--mlnrev-font-head:"Fraunces",Georgia,serif;--mlnrev-font-body:"DM Sans",system-ui,sans-serif;--mlnrev-section-bg:#FAF6F0;--mlnrev-card:#FFFFFF;--mlnrev-ink:#3D1A33;--mlnrev-text:#3D1A33;--mlnrev-muted:rgba(61,26,51,.6);--mlnrev-border:rgba(61,26,51,.14);--mlnrev-accent:#6B2D5C;--mlnrev-accent-deep:#5A2350;--mlnrev-accent-ink:#FFF;--mlnrev-accent-tint:rgba(107,45,92,.11);--mlnrev-shadow:rgba(61,26,51,.08);--mlnrev-cta-shadow:rgba(107,45,92,.32)}',
 '.mlnrev[data-theme="pv"]{--mlnrev-font-head:"Playfair Display",Georgia,serif;--mlnrev-font-body:"Poppins",system-ui,sans-serif;--mlnrev-section-bg:#FFF7F0;--mlnrev-card:#FFFFFF;--mlnrev-ink:#17181C;--mlnrev-text:#5E5F66;--mlnrev-muted:#94959B;--mlnrev-border:rgba(23,24,28,.10);--mlnrev-accent:#EC7949;--mlnrev-accent-deep:#C2571F;--mlnrev-accent-ink:#FFF;--mlnrev-accent-tint:rgba(236,121,73,.12);--mlnrev-shadow:rgba(23,24,28,.07);--mlnrev-cta-shadow:rgba(236,121,73,.42)}'
   ].join('');
-  var st = document.createElement('style'); st.appendChild(document.createTextNode(CSS)); document.head.appendChild(st);
+  // Injecté en fin de <body> (après le reset .mln-page * de la page) pour que nos marges/paddings gagnent.
+  var st = document.createElement('style'); st.appendChild(document.createTextNode(CSS));
+  (document.body || document.documentElement).appendChild(st);
 
   var arrow = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>';
 
