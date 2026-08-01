@@ -12,6 +12,19 @@
   var WEBHOOK = 'https://n8n.melodineapi.com/webhook/melonia-revision';
 
   function qp(n) { try { return new URL(location.href).searchParams.get(n) || ''; } catch (e) { return ''; } }
+
+  // Sur la page "nouvelle preview", on change le titre pour que le client comprenne
+  // que c'est sa version révisée (indépendant du widget de révision ci-dessous).
+  var IS_NEW = /your-new-preview/i.test(location.pathname) || qp('result') === '1';
+  function fixHeading() {
+    if (!IS_NEW) return;
+    var t = document.querySelector('.mln-title, #mln-name-1');
+    var s = document.getElementById('mln-subtitle') || document.getElementById('mln-song-meta');
+    if (t) { try { t.innerHTML = 'Here’s your <em style="font-style:normal;color:var(--uq-orange,#EC7949)">new</em> version'; } catch (e) {} }
+    if (s) { s.textContent = 'We reworked it just for you — take a listen.'; }
+  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', fixHeading); } else { fixHeading(); }
+
   if (!GATEOFF && qp('rev') !== '1') return;
 
   var leadId = (qp('lead') || qp('lead_id') || qp('id') || '').trim().toUpperCase();
