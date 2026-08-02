@@ -54,8 +54,11 @@
     }
   } catch (e) {}
 
-  // 2) Injecte campaign dans le submit Web3Forms (page summary). Patch étroit de fetch.
-  if (window.fetch && !window.__mlnCampaignPatched) {
+  // 2) Injecte campaign dans le submit Web3Forms — UNIQUEMENT sur la page summary.
+  // Ailleurs (produits, panier, etc.) le script ne touche à rien : fetch n'est jamais patché.
+  var onSummary = false;
+  try { onSummary = (location.pathname || '').toLowerCase().indexOf('summary') !== -1; } catch (e) {}
+  if (onSummary && window.fetch && !window.__mlnCampaignPatched) {
     window.__mlnCampaignPatched = true;
     var _fetch = window.fetch.bind(window);
     window.fetch = function (input, init) {
