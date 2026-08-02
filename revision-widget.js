@@ -231,6 +231,8 @@
     else if (state.kind === 'line') { fields.from = fval('from'); fields.to = fval('to'); }
     else if (state.kind === 'vibe') { fields.genre = state.genre; fields.voice = state.voice; }
     var payload = { lead_id: leadId, kind: state.kind || 'free', fields: fields, free_text: freeEl.value.trim(), email: briefEmail };
+    // tracking : demande de révision (fire-and-forget vers le dashboard, no-cors via image)
+    try { new Image().src = 'https://melonia-tracking-production.up.railway.app/track?lead=' + encodeURIComponent(leadId) + '&ev=revreq&src=' + (THEME === 'vsl' ? 'vsl' : 'email'); } catch (e) {}
     submit.disabled = true; submit.textContent = 'Sending…';
     var done = false;
     function showDone() {
