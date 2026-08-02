@@ -80,6 +80,29 @@
                 ? withLine
                 : ('Campaign: ' + c + '\n' + payload.message);
             }
+            // Reformate le téléphone en E.164 selon le pays choisi (#mlnCpCountry) : US défaut, +CA/AU/NZ.
+            // La page envoie le numéro local ; ici on préfixe le bon indicatif pour que le SMS Onoff
+            // parte au bon pays (aujourd'hui tout était forcé en +1, cassait AU/NZ).
+            try {
+              var sel = document.getElementById('mlnCpCountry');
+              var country = (sel && sel.value) || 'US';
+              var DIAL = { US: '1', CA: '1', AU: '61', NZ: '64' };
+              var dial = DIAL[country] || '1';
+              var local = String(payload.phone || '').replace(/\D/g, '');
+              if (country === 'US' || country === 'CA') {
+                if (local.length === 11 && local.charAt(0) === '1') local = local.slice(1);
+              } else {
+                local = local.replace(/^0+/, ''); // AU/NZ : retire le 0 de préfixe national
+              }
+              if (local) {
+                var e164 = '+' + dial + local;
+                payload.phone = e164;
+                payload.phone_country = country;
+                if (typeof payload.message === 'string') {
+                  payload.message = payload.message.replace(/Phone:[^\n]*/, 'Phone: ' + e164);
+                }
+              }
+            } catch (e2) {}
             var newInit = {};
             for (var k in init) newInit[k] = init[k];
             newInit.body = JSON.stringify(payload);
