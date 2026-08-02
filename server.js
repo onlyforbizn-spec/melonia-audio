@@ -597,6 +597,15 @@ app.get('/revision-widget.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'revision-widget.js'));
 });
 
+// Capture de campagne (script externe auto-injecté). Chargé par /pages/quiz, quiz-2 et summary via
+// <script src="/campaign-capture.js">. Persiste ?c=/?utm_campaign= puis injecte `campaign` dans le
+// POST Web3Forms. CORS déjà ouvert (*) plus haut.
+app.get('/campaign-capture.js', (req, res) => {
+  res.type('application/javascript');
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  res.sendFile(path.join(__dirname, 'campaign-capture.js'));
+});
+
 app.get('/', (req, res) => res.send('Melonia audio server OK'));
 
 app.use((err, req, res, next) => {
