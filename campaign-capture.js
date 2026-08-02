@@ -1,17 +1,17 @@
 /* Melonia — campaign capture (script externe auto-injecté).
    Chargé via <script src="https://melonia-audio-production.up.railway.app/campaign-capture.js"></script>
-   en bas du body des pages d'atterrissage quiz (ex. /pages/quiz, /pages/quiz-big4) ET de /pages/summary.
+   en bas du body de /pages/quiz (et quiz-big4 si créée) ET de /pages/summary.
 
-   Principe (100 % fiable, aucune dépendance à un paramètre d'URL mutable) :
-   La campagne est déterminée par LA PAGE D'ENTRÉE que le client franchit — ce que tu contrôles à
-   100 % via le lien de la pub. Une page dont l'URL contient "big4" => campagne "big4" ; toute autre
-   page quiz => "us" (défaut). Un ?c= dans l'URL reste accepté comme override explicite si besoin.
+   Attribution 100 % fiable, sans dépendre d'un param d'URL mutable :
+   - La pub Big Four atterrit sur /pages/landing-page dont les boutons pointent vers
+     /pages/quiz?c=big4 (lien interne codé en dur → param transmis à coup sûr).
+   - Sur le quiz, ce ?c=big4 pose le tag. La pub US va sur /pages/quiz sans param → défaut "us".
 
-   Rôle :
-   1) Sur une page d'atterrissage quiz : (ré)initialise localStorage.mln_campaign selon la page.
-      Réinitialiser à chaque entrée écrase tout tag périmé d'un parcours précédent -> jamais de fuite.
-   2) Sur /pages/summary : injecte `campaign` dans le POST Web3Forms + une ligne "Campaign:" dans le
-      message, pour que n8n attribue la demande d'extrait à la bonne campagne. Défaut = "us".
+   Stockage en sessionStorage (par onglet) :
+   - survit à toute la navigation du parcours (landing → quiz → summary, y compris le bouton "retour"),
+   - meurt à la fermeture de l'onglet → jamais de tag périmé d'une session précédente.
+   Règle : un ?c= explicite prime et écrit toujours ; sinon on ne pose le défaut que si RIEN n'est
+   déjà stocké (donc le "retour" vers /pages/quiz n'écrase jamais un big4 déjà posé).
 
    Aucun impact sur la logique du wizard : capture passive + patch ciblé du seul appel Web3Forms. */
 (function () {
@@ -30,32 +30,34 @@
     if (!s) return '';
     return ALIAS[s] || s;
   }
-  function readCampaign() {
-    try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; }
-  }
-  // Détecte la campagne depuis le nom de la page d'atterrissage. Renvoie null si ce n'est PAS
-  // une page quiz (ex. summary) -> on ne touche pas au tag, on se contente de le lire.
+  function ss() { try { return window.sessionStorage; } catch (e) { return null; } }
+  function readCampaign() { var s = ss(); try { return (s && s.getItem(KEY)) || ''; } catch (e) { return ''; } }
+  function writeCampaign(v) { var s = ss(); try { if (s) s.setItem(KEY, v); } catch (e) {} }
+
+  // Détecte la campagne depuis le nom de la page d'atterrissage quiz. null si ce n'est pas une
+  // page quiz (ex. summary, landing-page) → on ne pose rien, on se contente de lire à l'injection.
   function landingCampaign() {
     var p = '';
     try { p = (location.pathname || '').toLowerCase(); } catch (e) { return null; }
-    if (p.indexOf('quiz') === -1) return null;          // pas une page d'atterrissage
-    if (/big-?4|bigfour/.test(p)) return 'big4';        // page Big Four dédiée
-    return 'us';                                        // page quiz standard -> défaut US
+    if (p.indexOf('quiz') === -1) return null;
+    if (/big-?4|bigfour/.test(p)) return 'big4';   // page Big Four dédiée si un jour créée
+    return 'us';                                    // page quiz standard → défaut US
   }
 
-  // 1) Sur une page d'atterrissage : (ré)initialise le tag. Un ?c= explicite prime.
+  // 1) Sur une page d'atterrissage quiz : pose le tag. ?c= explicite prime toujours ; sinon
+  //    on ne met le défaut que si rien n'est déjà stocké (le "retour" n'écrase pas un big4).
   try {
     var landing = landingCampaign();
     if (landing !== null) {
       var q = new URLSearchParams(location.search);
       var override = normalize(q.get('c') || q.get('utm_campaign') || q.get('campaign'));
-      var camp = override || landing;
-      try { localStorage.setItem(KEY, camp); } catch (e) {}
+      if (override) writeCampaign(override);
+      else if (!readCampaign()) writeCampaign(landing);
     }
   } catch (e) {}
 
   // 2) Injecte campaign dans le submit Web3Forms — UNIQUEMENT sur la page summary.
-  // Ailleurs (produits, panier, etc.) le script ne touche à rien : fetch n'est jamais patché.
+  //    Ailleurs (produits, panier, landing) le script ne touche à rien : fetch n'est jamais patché.
   var onSummary = false;
   try { onSummary = (location.pathname || '').toLowerCase().indexOf('summary') !== -1; } catch (e) {}
   if (onSummary && window.fetch && !window.__mlnCampaignPatched) {
