@@ -96,10 +96,14 @@
               }
               if (local) {
                 var e164 = '+' + dial + local;
+                var NAME = { US: 'United States', CA: 'Canada', AU: 'Australia', NZ: 'New Zealand' };
+                var cname = NAME[country] || country;
                 payload.phone = e164;
-                payload.phone_country = country;
+                payload.phone_country = country;   // code (US|CA|AU|NZ)
+                payload.phone_country_name = cname; // nom lisible (Canada, Australia…)
                 if (typeof payload.message === 'string') {
-                  payload.message = payload.message.replace(/Phone:[^\n]*/, 'Phone: ' + e164);
+                  // Nom du pays en clair : +1 est partagé US/Canada, le numéro seul ne suffit pas.
+                  payload.message = payload.message.replace(/Phone:[^\n]*/, 'Phone: ' + e164 + ' (' + cname + ')');
                 }
               }
             } catch (e2) {}
