@@ -37,13 +37,27 @@
 
   var LIMIT = 3; // nombre max de révisions par client
   // On lit le compteur de révisions dans le meta ; à LIMIT atteint, le widget ne s'affiche plus.
-  function run() {
-    var murl = 'https://melonia-audio-production.up.railway.app/meta?lead_id=' + encodeURIComponent(leadId);
-    fetch(murl).then(function (r) { return r.json(); }).then(function (d) {
+  var BASE = 'https://melonia-audio-production.up.railway.app';
+
+  // Le widget ne s'affiche QUE quand l'extrait est prêt. Sur song-in-progress (chanson en
+  // cours de génération) il attend en interrogeant /ready, puis apparaît au bon moment.
+  // Sur les pages preview, /ready est vrai immédiatement -> aucun changement.
+  function run() { checkReady(0); }
+
+  function decideAndInject() {
+    fetch(BASE + '/meta?lead_id=' + encodeURIComponent(leadId)).then(function (r) { return r.json(); }).then(function (d) {
       var c = (d && d.meta && Number(d.meta.revision_count)) || 0;
       if (c >= LIMIT) { inject(true); return; } // limite atteinte -> message, pas de formulaire
       inject();
     }).catch(function () { inject(); }); // meta indispo -> on affiche quand même
+  }
+
+  function checkReady(attempt) {
+    fetch(BASE + '/ready?lead_id=' + encodeURIComponent(leadId)).then(function (r) { return r.json(); }).then(function (rd) {
+      if (rd && rd.ready) { decideAndInject(); return; }
+      // extrait pas encore prêt -> ne rien afficher, re-tester (le client attend sur la page)
+      if (attempt < 60) setTimeout(function () { checkReady(attempt + 1); }, 20000); // ~20 min max
+    }).catch(function () { decideAndInject(); }); // /ready en erreur -> secours : on affiche
   }
 
   function inject(atLimit) {
