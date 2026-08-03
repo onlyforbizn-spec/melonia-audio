@@ -98,6 +98,41 @@
     }, true);
   } catch (e) {}
 
+  // 1d) Devise locale (Big Four) : sur les pages preview/VSL, convertit les prix affichés (USD) dans
+  //     la devise du visiteur (CAD/AUD/NZD) que Shopify a résolue (Markets/conversion). Matche le
+  //     checkout Shopify. No-op si le visiteur est en USD ou s'il n'y a pas de prix sur la page.
+  try {
+    var cur = (window.Shopify && window.Shopify.currency) ? window.Shopify.currency : null;
+    var active = cur && cur.active;
+    var rate = cur && parseFloat(cur.rate);
+    if (active && active !== 'USD' && rate && rate > 0 && rate !== 1) {
+      var fmtLocal = function (n) {
+        try { return new Intl.NumberFormat('en', { style: 'currency', currency: active, maximumFractionDigits: 0 }).format(n); }
+        catch (e) { return active + ' ' + Math.round(n); }
+      };
+      var convertPrices = function () {
+        var els = document.querySelectorAll('.mln-price-new, .mln-price-old, .mln-addon-price');
+        for (var i = 0; i < els.length; i++) {
+          var el = els[i];
+          if (el.getAttribute('data-mln-cur') === active) continue; // déjà converti
+          var txt = el.textContent || '';
+          var m = txt.match(/([0-9]+(?:[.,][0-9]+)?)/);
+          if (!m) continue;
+          var usd = parseFloat(m[1].replace(',', '.'));
+          if (!usd) continue;
+          var prefix = /^\s*\+/.test(txt) ? '+' : '';       // garde le "+" de l'add-on
+          el.textContent = prefix + fmtLocal(Math.round(usd * rate));
+          el.setAttribute('data-mln-cur', active);
+        }
+      };
+      convertPrices();
+      // Retries : le pricing peut se (re)rendre après coup (options synchronisées, /ready).
+      setTimeout(convertPrices, 600);
+      setTimeout(convertPrices, 1600);
+      setTimeout(convertPrices, 3500);
+    }
+  } catch (e) {}
+
   // 2) Injecte campaign dans le submit Web3Forms — UNIQUEMENT sur la page summary.
   //    Ailleurs (produits, panier, landing) le script ne touche à rien : fetch n'est jamais patché.
   var onSummary = false;
