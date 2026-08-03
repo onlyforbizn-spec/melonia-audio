@@ -79,6 +79,25 @@
     }
   } catch (e) {}
 
+  // 1c) Tracke l'initiation de checkout en first-party (clic sur un CTA .mln-cta ou lien /cart/).
+  //     Immédiat et fiable → le dashboard compte les checkouts sans attendre le "panier abandonné"
+  //     de Shopify (différé de plusieurs heures et seulement si l'email a été saisi). lead depuis ?lead=.
+  try {
+    document.addEventListener('click', function (e) {
+      try {
+        var el = e.target;
+        var t = (el && el.closest) ? el.closest('.mln-cta, a[href*="/cart/"]') : null;
+        if (!t) return;
+        var lead = new URLSearchParams(location.search).get('lead') || '';
+        if (!lead) return;
+        var url = 'https://melonia-tracking-production.up.railway.app/track?lead='
+          + encodeURIComponent(lead) + '&ev=checkout&src=preview';
+        if (window.fetch) { window.fetch(url, { mode: 'no-cors', keepalive: true }).catch(function () {}); }
+        else { var img = new Image(); img.src = url; }
+      } catch (e2) {}
+    }, true);
+  } catch (e) {}
+
   // 2) Injecte campaign dans le submit Web3Forms — UNIQUEMENT sur la page summary.
   //    Ailleurs (produits, panier, landing) le script ne touche à rien : fetch n'est jamais patché.
   var onSummary = false;
