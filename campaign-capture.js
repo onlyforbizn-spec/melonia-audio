@@ -109,7 +109,7 @@
     var activeGeo = curGeo && curGeo.active;
     var paramsGeo = new URLSearchParams(location.search);
     var DBG = paramsGeo.get('mlndebug') === '1';
-    var dbg = function (m) { try { console.log('[MLN]', m); if (DBG) alert('MLN debug — ' + m); } catch (e) {} };
+    var dbg = function (m) { try { if (DBG) { console.log('[MLN]', m); alert('MLN debug — ' + m); } } catch (e) {} };
     var triedGeo = false;
     try { triedGeo = !!sessionStorage.getItem('mln_geo_tried'); } catch (e) {}
     dbg('devise=' + activeGeo + ' | prix trouvés=' + (!!hasPricesGeo) + ' | déjà tenté=' + triedGeo + ' | country param=' + paramsGeo.get('country'));
