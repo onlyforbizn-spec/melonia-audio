@@ -151,7 +151,10 @@
     var cur = (window.Shopify && window.Shopify.currency) ? window.Shopify.currency : null;
     var active = cur && cur.active;
     var rate = cur && parseFloat(cur.rate);
-    var country = (window.Shopify && window.Shopify.country) || 'US';
+    // Pays pour la requête prix : dérivé de la DEVISE active (fiable), pas de Shopify.country
+    // (pas fiable quand Shopify sert déjà la devise locale sans ?country=).
+    var CCY2CTRY = { AUD: 'AU', CAD: 'CA', NZD: 'NZ', USD: 'US', GBP: 'GB', EUR: 'IE' };
+    var country = CCY2CTRY[active] || (window.Shopify && window.Shopify.country) || 'US';
     var hasPrices = document.querySelector('.mln-price-new, .mln-addon-price');
     if (hasPrices && active && active !== 'USD') {
       var sfToken = '';
@@ -196,6 +199,7 @@
             var lp = loc[i] && loc[i].price, up = us[i] && us[i].price;
             if (lp && up) { ccy = lp.currencyCode || ccy; map[Math.round(parseFloat(up.amount))] = Math.round(parseFloat(lp.amount)); }
           }
+          try { if (typeof dbg === 'function') dbg('CONV pays=' + country + ' | token=' + (sfToken ? 'oui' : 'NON') + ' | map=' + JSON.stringify(map) + ' | devise=' + ccy); } catch (e) {}
           var run = function () { applyPrices(map, ccy); };
           run(); setTimeout(run, 800); setTimeout(run, 2000); setTimeout(run, 4000);
         }).catch(function () {});
