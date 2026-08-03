@@ -25,10 +25,10 @@
   function slug(v) {
     return String(v || '').toLowerCase().trim().replace(/[^a-z0-9_-]/g, '').slice(0, 24);
   }
+  // N'accepte QUE des valeurs connues (us|big4 via alias). Toute autre valeur (ex. un
+  // utm_campaign = ID numérique de campagne Meta) est ignorée -> on retombe sur le défaut de page.
   function normalize(raw) {
-    var s = slug(raw);
-    if (!s) return '';
-    return ALIAS[s] || s;
+    return ALIAS[slug(raw)] || '';
   }
   function ss() { try { return window.sessionStorage; } catch (e) { return null; } }
   function readCampaign() { var s = ss(); try { return (s && s.getItem(KEY)) || ''; } catch (e) { return ''; } }
@@ -50,7 +50,8 @@
     var landing = landingCampaign();
     if (landing !== null) {
       var q = new URLSearchParams(location.search);
-      var override = normalize(q.get('c') || q.get('utm_campaign') || q.get('campaign'));
+      // UNIQUEMENT notre param dédié ?c= — surtout PAS utm_campaign (Meta y met l'ID de campagne FB).
+      var override = normalize(q.get('c'));
       if (override) writeCampaign(override);
       else if (!readCampaign()) writeCampaign(landing);
     }
