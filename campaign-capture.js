@@ -110,41 +110,48 @@
     var paramsGeo = new URLSearchParams(location.search);
     var DBG = paramsGeo.get('mlndebug') === '1';
     var dbg = function (m) { try { if (DBG) { console.log('[MLN]', m); alert('MLN debug — ' + m); } } catch (e) {} };
-    var triedGeo = false;
-    try { triedGeo = !!sessionStorage.getItem('mln_geo_tried'); } catch (e) {}
-    dbg('devise=' + activeGeo + ' | prix trouvés=' + (!!hasPricesGeo) + ' | déjà tenté=' + triedGeo + ' | country param=' + paramsGeo.get('country'));
-    // Devise attendue par pays. On détecte TOUJOURS le pays (1 fois/session) et on force le bon
-    // marché via ?country= si la devise servie ne correspond pas — que ce soit l'USD par défaut
-    // (Shopify n'a pas switché) OU un cookie de devise périmé d'une autre session (ex. test CA→AU).
+    dbg('devise=' + activeGeo + ' | prix trouvés=' + (!!hasPricesGeo) + ' | country param=' + paramsGeo.get('country'));
+    // Devise attendue par pays. On corrige à CHAQUE chargement si la devise servie ne correspond PAS
+    // au pays réel du visiteur — que ce soit l'USD par défaut (Shopify n'a pas switché) OU un cookie
+    // de devise périmé d'une autre session (ex. test CA puis AU). Le pays est détecté une fois puis
+    // mis en cache (sessionStorage) → pas de rate-limit. ?country= + cookie Shopify empêchent la boucle.
     var EXPECT = { CA: 'CAD', AU: 'AUD', NZ: 'NZD', US: 'USD' };
-    if (hasPricesGeo && !paramsGeo.get('country') && !triedGeo) {
-      try { sessionStorage.setItem('mln_geo_tried', '1'); } catch (e) {}
-      // Détection pays en CASCADE (fiabilité + anti rate-limit) : 1re source qui répond un code ISO gagne.
-      var sources = [
-        { url: 'https://get.geojs.io/v1/ip/country.json', pick: function (j) { return j && j.country; } },
-        { url: 'https://ipwho.is/?fields=country_code', pick: function (j) { return j && j.country_code; } },
-        { url: 'https://ipapi.co/json/', pick: function (j) { return j && j.country_code; } },
-        { url: 'https://api.country.is/', pick: function (j) { return j && j.country; } }
-      ];
-      var si = 0;
-      var tryNext = function () {
-        if (si >= sources.length) { dbg('aucune source géo n a répondu'); return; }
-        var s = sources[si++];
-        fetch(s.url).then(function (r) { return r.json(); }).then(function (j) {
-          var c = ((s.pick(j) || '') + '').toUpperCase();
-          dbg('géo=' + c + ' | devise servie=' + activeGeo);
-          if (/^[A-Z]{2}$/.test(c)) {
-            if (EXPECT[c] && activeGeo !== EXPECT[c]) {
-              paramsGeo.set('country', c);
-              dbg('devise ne correspond pas → bascule ?country=' + c);
-              location.replace(location.pathname + '?' + paramsGeo.toString() + location.hash);
-            } else {
-              dbg('déjà cohérent (' + activeGeo + ') ou pays hors zone → rien à faire');
-            }
-          } else { tryNext(); }
-        }).catch(function () { tryNext(); });
-      };
-      tryNext();
+    var handleGeo = function (c) {
+      c = ((c || '') + '').toUpperCase();
+      dbg('géo=' + c + ' | devise servie=' + activeGeo);
+      if (/^[A-Z]{2}$/.test(c) && EXPECT[c] && activeGeo !== EXPECT[c]) {
+        paramsGeo.set('country', c);
+        dbg('décalage devise/pays → bascule ?country=' + c);
+        location.replace(location.pathname + '?' + paramsGeo.toString() + location.hash);
+      } else { dbg('cohérent (' + activeGeo + ') ou pays hors zone → rien'); }
+    };
+    if (hasPricesGeo && !paramsGeo.get('country')) {
+      var cachedGeo = '';
+      try { cachedGeo = sessionStorage.getItem('mln_geo_country') || ''; } catch (e) {}
+      if (cachedGeo) {
+        handleGeo(cachedGeo);
+      } else {
+        // Détection pays en CASCADE (fiabilité) : 1re source qui répond un code ISO gagne, puis cache.
+        var sources = [
+          { url: 'https://get.geojs.io/v1/ip/country.json', pick: function (j) { return j && j.country; } },
+          { url: 'https://ipwho.is/?fields=country_code', pick: function (j) { return j && j.country_code; } },
+          { url: 'https://ipapi.co/json/', pick: function (j) { return j && j.country_code; } },
+          { url: 'https://api.country.is/', pick: function (j) { return j && j.country; } }
+        ];
+        var si = 0;
+        var tryNext = function () {
+          if (si >= sources.length) { dbg('aucune source géo n a répondu'); return; }
+          var s = sources[si++];
+          fetch(s.url).then(function (r) { return r.json(); }).then(function (j) {
+            var c = ((s.pick(j) || '') + '').toUpperCase();
+            if (/^[A-Z]{2}$/.test(c)) {
+              try { sessionStorage.setItem('mln_geo_country', c); } catch (e) {}
+              handleGeo(c);
+            } else { tryNext(); }
+          }).catch(function () { tryNext(); });
+        };
+        tryNext();
+      }
     }
   } catch (e) {}
 
