@@ -108,17 +108,24 @@
     var curGeo = window.Shopify && window.Shopify.currency;
     var activeGeo = curGeo && curGeo.active;
     var paramsGeo = new URLSearchParams(location.search);
+    var DBG = paramsGeo.get('mlndebug') === '1';
+    var dbg = function (m) { try { console.log('[MLN]', m); if (DBG) alert('MLN debug — ' + m); } catch (e) {} };
     var triedGeo = false;
     try { triedGeo = !!sessionStorage.getItem('mln_geo_tried'); } catch (e) {}
+    dbg('devise=' + activeGeo + ' | prix trouvés=' + (!!hasPricesGeo) + ' | déjà tenté=' + triedGeo + ' | country param=' + paramsGeo.get('country'));
     if (hasPricesGeo && (!activeGeo || activeGeo === 'USD') && !paramsGeo.get('country') && !triedGeo) {
       try { sessionStorage.setItem('mln_geo_tried', '1'); } catch (e) {}
       fetch('https://api.country.is/').then(function (r) { return r.json(); }).then(function (j) {
         var c = ((j && j.country) || '').toUpperCase();
+        dbg('pays détecté (geo-IP) = ' + c);
         if (c === 'CA' || c === 'AU' || c === 'NZ') {
           paramsGeo.set('country', c);
+          dbg('redirection vers ?country=' + c);
           location.replace(location.pathname + '?' + paramsGeo.toString() + location.hash);
+        } else {
+          dbg('pas dans CA/AU/NZ → pas de bascule');
         }
-      }).catch(function () {});
+      }).catch(function (e) { dbg('geo-IP a échoué: ' + e); });
     }
   } catch (e) {}
 
