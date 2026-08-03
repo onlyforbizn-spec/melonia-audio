@@ -98,38 +98,62 @@
     }, true);
   } catch (e) {}
 
-  // 1d) Devise locale (Big Four) : sur les pages preview/VSL, convertit les prix affichés (USD) dans
-  //     la devise du visiteur (CAD/AUD/NZD) que Shopify a résolue (Markets/conversion). Matche le
-  //     checkout Shopify. No-op si le visiteur est en USD ou s'il n'y a pas de prix sur la page.
+  // 1d) Devise locale (Big Four) : sur les pages preview/VSL, affiche les prix dans la devise du
+  //     visiteur (CAD/AUD/NZD). Prix RÉELS = valeurs EXACTES de l'API Storefront (matchent le
+  //     checkout Markets au centime) ; prix BARRÉS (fictifs) = conversion par taux. No-op en USD.
   try {
     var cur = (window.Shopify && window.Shopify.currency) ? window.Shopify.currency : null;
     var active = cur && cur.active;
     var rate = cur && parseFloat(cur.rate);
-    if (active && active !== 'USD' && rate && rate > 0 && rate !== 1) {
-      var fmtLocal = function (n) {
-        try { return new Intl.NumberFormat('en', { style: 'currency', currency: active, maximumFractionDigits: 0 }).format(n); }
-        catch (e) { return active + ' ' + Math.round(n); }
+    var country = (window.Shopify && window.Shopify.country) || 'US';
+    var hasPrices = document.querySelector('.mln-price-new, .mln-addon-price');
+    if (hasPrices && active && active !== 'USD') {
+      var sfToken = '';
+      try { sfToken = JSON.parse(document.getElementById('shopify-features').textContent).accessToken || ''; } catch (e) {}
+      var GIDS = ['gid://shopify/ProductVariant/54126889140551',
+                  'gid://shopify/ProductVariant/54126888649031',
+                  'gid://shopify/ProductVariant/54126891630919'];
+      var fmtLocal = function (n, ccy) {
+        try { return new Intl.NumberFormat('en', { style: 'currency', currency: ccy || active, maximumFractionDigits: 0 }).format(n); }
+        catch (e) { return (ccy || active) + ' ' + Math.round(n); }
       };
-      var convertPrices = function () {
-        var els = document.querySelectorAll('.mln-price-new, .mln-price-old, .mln-addon-price');
+      var sfQuery = function (ctry) {
+        return fetch('https://melonia-song.com/api/2024-10/graphql.json', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Shopify-Storefront-Access-Token': sfToken },
+          body: JSON.stringify({ query: 'query @inContext(country: ' + ctry + '){ nodes(ids: ' + JSON.stringify(GIDS) + '){ ... on ProductVariant { price { amount currencyCode } } } }' })
+        }).then(function (r) { return r.json(); });
+      };
+      var applyPrices = function (map, ccy) {
+        var els = document.querySelectorAll('.mln-price-new, .mln-addon-price, .mln-price-old');
         for (var i = 0; i < els.length; i++) {
           var el = els[i];
-          if (el.getAttribute('data-mln-cur') === active) continue; // déjà converti
+          if (el.getAttribute('data-mln-cur') === active) continue;
           var txt = el.textContent || '';
           var m = txt.match(/([0-9]+(?:[.,][0-9]+)?)/);
           if (!m) continue;
-          var usd = parseFloat(m[1].replace(',', '.'));
+          var usd = Math.round(parseFloat(m[1].replace(',', '.')));
           if (!usd) continue;
-          var prefix = /^\s*\+/.test(txt) ? '+' : '';       // garde le "+" de l'add-on
-          el.textContent = prefix + fmtLocal(Math.round(usd * rate));
+          var prefix = /^\s*\+/.test(txt) ? '+' : '';
+          var isAnchor = el.className.indexOf('mln-price-old') !== -1;
+          var local = (!isAnchor && map[usd] != null) ? map[usd] : (usd * (rate || 1));
+          el.textContent = prefix + fmtLocal(local, ccy);
           el.setAttribute('data-mln-cur', active);
         }
       };
-      convertPrices();
-      // Retries : le pricing peut se (re)rendre après coup (options synchronisées, /ready).
-      setTimeout(convertPrices, 600);
-      setTimeout(convertPrices, 1600);
-      setTimeout(convertPrices, 3500);
+      if (sfToken) {
+        Promise.all([sfQuery(country), sfQuery('US')]).then(function (res) {
+          var loc = (res[0] && res[0].data && res[0].data.nodes) || [];
+          var us = (res[1] && res[1].data && res[1].data.nodes) || [];
+          var ccy = active, map = {};
+          for (var i = 0; i < GIDS.length; i++) {
+            var lp = loc[i] && loc[i].price, up = us[i] && us[i].price;
+            if (lp && up) { ccy = lp.currencyCode || ccy; map[Math.round(parseFloat(up.amount))] = Math.round(parseFloat(lp.amount)); }
+          }
+          var run = function () { applyPrices(map, ccy); };
+          run(); setTimeout(run, 800); setTimeout(run, 2000); setTimeout(run, 4000);
+        }).catch(function () {});
+      }
     }
   } catch (e) {}
 
