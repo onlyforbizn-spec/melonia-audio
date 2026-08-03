@@ -115,17 +115,32 @@
     dbg('devise=' + activeGeo + ' | prix trouvés=' + (!!hasPricesGeo) + ' | déjà tenté=' + triedGeo + ' | country param=' + paramsGeo.get('country'));
     if (hasPricesGeo && (!activeGeo || activeGeo === 'USD') && !paramsGeo.get('country') && !triedGeo) {
       try { sessionStorage.setItem('mln_geo_tried', '1'); } catch (e) {}
-      fetch('https://api.country.is/').then(function (r) { return r.json(); }).then(function (j) {
-        var c = ((j && j.country) || '').toUpperCase();
-        dbg('pays détecté (geo-IP) = ' + c);
-        if (c === 'CA' || c === 'AU' || c === 'NZ') {
-          paramsGeo.set('country', c);
-          dbg('redirection vers ?country=' + c);
-          location.replace(location.pathname + '?' + paramsGeo.toString() + location.hash);
-        } else {
-          dbg('pas dans CA/AU/NZ → pas de bascule');
-        }
-      }).catch(function (e) { dbg('geo-IP a échoué: ' + e); });
+      // Détection pays en CASCADE (fiabilité + anti rate-limit) : 1re source qui répond un code ISO gagne.
+      var sources = [
+        { url: 'https://get.geojs.io/v1/ip/country.json', pick: function (j) { return j && j.country; } },
+        { url: 'https://ipwho.is/?fields=country_code', pick: function (j) { return j && j.country_code; } },
+        { url: 'https://ipapi.co/json/', pick: function (j) { return j && j.country_code; } },
+        { url: 'https://api.country.is/', pick: function (j) { return j && j.country; } }
+      ];
+      var si = 0;
+      var tryNext = function () {
+        if (si >= sources.length) { dbg('aucune source géo n a répondu'); return; }
+        var s = sources[si++];
+        fetch(s.url).then(function (r) { return r.json(); }).then(function (j) {
+          var c = ((s.pick(j) || '') + '').toUpperCase();
+          dbg('source ' + s.url.split('/')[2] + ' → ' + (c || '(vide)'));
+          if (/^[A-Z]{2}$/.test(c)) {
+            if (c === 'CA' || c === 'AU' || c === 'NZ') {
+              paramsGeo.set('country', c);
+              dbg('redirection vers ?country=' + c);
+              location.replace(location.pathname + '?' + paramsGeo.toString() + location.hash);
+            } else {
+              dbg('pays = ' + c + ' (hors CA/AU/NZ) → reste en USD');
+            }
+          } else { tryNext(); }
+        }).catch(function () { tryNext(); });
+      };
+      tryNext();
     }
   } catch (e) {}
 
