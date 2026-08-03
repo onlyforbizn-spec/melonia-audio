@@ -113,7 +113,11 @@
     var triedGeo = false;
     try { triedGeo = !!sessionStorage.getItem('mln_geo_tried'); } catch (e) {}
     dbg('devise=' + activeGeo + ' | prix trouvés=' + (!!hasPricesGeo) + ' | déjà tenté=' + triedGeo + ' | country param=' + paramsGeo.get('country'));
-    if (hasPricesGeo && (!activeGeo || activeGeo === 'USD') && !paramsGeo.get('country') && !triedGeo) {
+    // Devise attendue par pays. On détecte TOUJOURS le pays (1 fois/session) et on force le bon
+    // marché via ?country= si la devise servie ne correspond pas — que ce soit l'USD par défaut
+    // (Shopify n'a pas switché) OU un cookie de devise périmé d'une autre session (ex. test CA→AU).
+    var EXPECT = { CA: 'CAD', AU: 'AUD', NZ: 'NZD', US: 'USD' };
+    if (hasPricesGeo && !paramsGeo.get('country') && !triedGeo) {
       try { sessionStorage.setItem('mln_geo_tried', '1'); } catch (e) {}
       // Détection pays en CASCADE (fiabilité + anti rate-limit) : 1re source qui répond un code ISO gagne.
       var sources = [
@@ -128,14 +132,14 @@
         var s = sources[si++];
         fetch(s.url).then(function (r) { return r.json(); }).then(function (j) {
           var c = ((s.pick(j) || '') + '').toUpperCase();
-          dbg('source ' + s.url.split('/')[2] + ' → ' + (c || '(vide)'));
+          dbg('géo=' + c + ' | devise servie=' + activeGeo);
           if (/^[A-Z]{2}$/.test(c)) {
-            if (c === 'CA' || c === 'AU' || c === 'NZ') {
+            if (EXPECT[c] && activeGeo !== EXPECT[c]) {
               paramsGeo.set('country', c);
-              dbg('redirection vers ?country=' + c);
+              dbg('devise ne correspond pas → bascule ?country=' + c);
               location.replace(location.pathname + '?' + paramsGeo.toString() + location.hash);
             } else {
-              dbg('pays = ' + c + ' (hors CA/AU/NZ) → reste en USD');
+              dbg('déjà cohérent (' + activeGeo + ') ou pays hors zone → rien à faire');
             }
           } else { tryNext(); }
         }).catch(function () { tryNext(); });
