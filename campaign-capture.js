@@ -57,6 +57,28 @@
     }
   } catch (e) {}
 
+  // 1b) Enregistre `campaign` comme super-property PostHog → TOUS les events du quiz la portent
+  //     (permet de splitter l'abandon du quiz par campagne). Retry tant que posthog n'est pas prêt.
+  try {
+    var campForPH = readCampaign() || 'us';
+    var phTries = 0;
+    var phReg = function () {
+      try {
+        if (window.posthog && typeof window.posthog.register === 'function') {
+          window.posthog.register({ campaign: campForPH });
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    };
+    if (!phReg()) {
+      var phIv = setInterval(function () {
+        phTries++;
+        if (phReg() || phTries > 25) clearInterval(phIv);
+      }, 200);
+    }
+  } catch (e) {}
+
   // 2) Injecte campaign dans le submit Web3Forms — UNIQUEMENT sur la page summary.
   //    Ailleurs (produits, panier, landing) le script ne touche à rien : fetch n'est jamais patché.
   var onSummary = false;
