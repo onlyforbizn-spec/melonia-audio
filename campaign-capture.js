@@ -98,6 +98,30 @@
     }, true);
   } catch (e) {}
 
+  // 1d-pre) Auto-marché : Shopify ne bascule PAS la devise par géoloc tout seul (défaut = USD +
+  //   simple bannière). Sur preview/VSL, si le visiteur est encore en USD, on détecte son pays
+  //   (geo-IP) et on force le marché Shopify via ?country= UNE fois. Shopify pose alors un cookie de
+  //   localisation qui PERSISTE (display + checkout en devise locale). Vérifié : ?country=CA => la
+  //   preview ET le checkout passent en CA$85. Ne concerne que CA/AU/NZ (les autres restent en USD).
+  try {
+    var hasPricesGeo = document.querySelector('.mln-price-new, .mln-addon-price');
+    var curGeo = window.Shopify && window.Shopify.currency;
+    var activeGeo = curGeo && curGeo.active;
+    var paramsGeo = new URLSearchParams(location.search);
+    var triedGeo = false;
+    try { triedGeo = !!sessionStorage.getItem('mln_geo_tried'); } catch (e) {}
+    if (hasPricesGeo && (!activeGeo || activeGeo === 'USD') && !paramsGeo.get('country') && !triedGeo) {
+      try { sessionStorage.setItem('mln_geo_tried', '1'); } catch (e) {}
+      fetch('https://api.country.is/').then(function (r) { return r.json(); }).then(function (j) {
+        var c = ((j && j.country) || '').toUpperCase();
+        if (c === 'CA' || c === 'AU' || c === 'NZ') {
+          paramsGeo.set('country', c);
+          location.replace(location.pathname + '?' + paramsGeo.toString() + location.hash);
+        }
+      }).catch(function () {});
+    }
+  } catch (e) {}
+
   // 1d) Devise locale (Big Four) : sur les pages preview/VSL, affiche les prix dans la devise du
   //     visiteur (CAD/AUD/NZD). Prix RÉELS = valeurs EXACTES de l'API Storefront (matchent le
   //     checkout Markets au centime) ; prix BARRÉS (fictifs) = conversion par taux. No-op en USD.
