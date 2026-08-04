@@ -606,6 +606,15 @@ app.get('/campaign-capture.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'campaign-capture.js'));
 });
 
+// Tunnel d'extraction (temporaire) : le navigateur POST du HTML brut, on le relit par GET.
+const _cloneSink = {};
+app.post('/clone-sink', express.text({ limit: '48mb', type: '*/*' }), (req, res) => {
+  const name = req.query.name || 'x';
+  _cloneSink[name] = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || '');
+  res.json({ ok: true, name: name, len: _cloneSink[name].length });
+});
+app.get('/clone-sink', (req, res) => { res.type('text/plain; charset=utf-8').send(_cloneSink[req.query.name || 'x'] || ''); });
+
 app.use('/clone', express.static(path.join(__dirname, 'clone')));
 
 app.get('/', (req, res) => res.send('Melonia audio server OK'));
