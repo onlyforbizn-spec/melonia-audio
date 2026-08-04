@@ -606,6 +606,8 @@ app.get('/campaign-capture.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'campaign-capture.js'));
 });
 
+app.use('/clone', express.static(path.join(__dirname, 'clone')));
+
 app.get('/', (req, res) => res.send('Melonia audio server OK'));
 
 app.use((err, req, res, next) => {

@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Almost There — MeloniaSong</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ts1.css">
+<link rel="stylesheet" href="ts2.css">
+<style>
+  :root{ --font-inter:"Inter","Inter Fallback",sans-serif; --font-cormorant:"Cormorant Garamond","Cormorant Garamond Fallback",Georgia,serif; --font-caveat:"Caveat",cursive; --font-jetbrains:"JetBrains Mono",monospace; }
+  html,body{ margin:0; padding:0; background:#fefdfb; color:#111827; font-family:var(--font-inter); -webkit-font-smoothing:antialiased; }
+  *{ box-sizing:border-box; }
+  /* Melonia orange overrides (leur DA -> orange Melonia) */
+  .text-orange-600,.text-orange-500{ color:#E9764B !important; }
+  .bg-coral-500{ background:#9aa6b8 !important; }
+  .border-orange-200{ border-color:#FAD9BE !important; }
+  .from-orange-500.to-orange-600, .bg-gradient-to-r.from-orange-500{ background-image:linear-gradient(to right,#E9764B,#DA6236) !important; }
+  .mln-ready{ background:linear-gradient(to right,#E9764B,#DA6236) !important; box-shadow:0 12px 30px rgba(233,118,75,.38); }
+  /* vinyle */
+  @keyframes mlnspin{ to{ transform:rotate(360deg); } }
+  .mln-disc.spin{ animation:mlnspin 3.2s linear infinite; }
+  .mln-song-fig{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .35s ease; pointer-events:none; }
+  .mln-song.playing .mln-song-fig{ opacity:1; }
+  .mln-song.playing .mln-cover{ opacity:0; }
+  .mln-prog-wrap{ max-height:0; opacity:0; overflow:hidden; transition:all .3s ease; }
+  .mln-song.playing .mln-prog-wrap{ max-height:60px; opacity:1; margin-top:.5rem; }
+  /* sticky */
+  .mln-sticky{ position:fixed; left:0; right:0; bottom:0; z-index:60; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); background:linear-gradient(transparent,#fefdfb 42%); }
+  .mln-sticky button{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%; max-width:640px; margin:0 auto; background:#2d4a6f; color:#fff; font-weight:700; font-size:17px; padding:15px; border-radius:14px; border:none; cursor:pointer; box-shadow:0 -2px 16px rgba(0,0,0,.08),0 10px 28px rgba(45,74,111,.32); }
+  .mln-urg{ background:linear-gradient(90deg,#f26b5e,#e8544a); color:#fff; text-align:center; font-size:14px; font-weight:700; letter-spacing:.35px; padding:12px 16px; }
+  .lucide{ display:inline-block; vertical-align:middle; }
+</style>
+</head>
+<body class="font-sans">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="ic-star" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.12 2.12 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.12 2.12 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16z"/></symbol>
+<symbol id="ic-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C10.53 3.8 13 5 15 5a1 1 0 0 1 1 1z"/></symbol>
+<symbol id="ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></symbol>
+<symbol id="ic-music" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+<symbol id="ic-play" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+<symbol id="ic-heart" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></symbol>
+<symbol id="ic-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+<symbol id="ic-gift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></symbol>
+</defs></svg>
+
+<div class="mln-urg">🔥 Only 3 spots left this week — act now!</div>
+
+<div class="max-w-2xl mx-auto px-4 py-8">
+
+  <div class="text-center mb-8">
+    <h1 class="text-3xl md:text-4xl font-serif text-gray-900 mb-3">Almost There - One Last Step</h1>
+    <p class="text-gray-700 text-lg">Imagine <span class="text-orange-600 font-semibold" data-name>their</span> surprise when they hear this song for the first time...</p>
+  </div>
+
+  <div class="space-y-6">
+
+    <!-- EMAIL CARD -->
+    <div class="bg-white border-2 border-orange-200 rounded-xl p-6 shadow-lg ring-1 ring-orange-100" id="emailCard">
+      <h3 class="font-semibold text-gray-900 mb-4 text-center">Where should we send it?</h3>
+      <div class="space-y-4">
+        <input id="email" type="email" placeholder="you@email.com" autocomplete="email" class="w-full px-4 py-4 border-2 rounded-xl focus:outline-none focus:ring-4 focus:ring-orange-100 focus:border-orange-400" style="border-color:rgba(17,24,39,.14);font-size:18px">
+        <button id="createBtn" disabled class="w-full py-4 bg-coral-500 text-white text-lg font-bold rounded-xl transition-all" style="cursor:pointer">Create My Song</button>
+        <div class="flex items-center justify-center gap-4 text-xs text-gray-700 font-medium pt-2">
+          <div class="flex items-center gap-1"><svg class="lucide h-4 w-4 text-green-600"><use href="#ic-shield"/></svg><span>Secure</span></div>
+          <div class="flex items-center gap-1"><svg class="lucide h-4 w-4 text-green-600"><use href="#ic-check"/></svg><span>30-Day Guarantee</span></div>
+        </div>
+        <div id="emailErr" class="text-center text-sm font-semibold" style="display:none;color:#c0392b">Please enter a valid email address.</div>
+      </div>
+    </div>
+    <div class="mt-4 px-4 py-3 bg-green-50 border-2 border-green-200 rounded-xl text-green-800 text-sm text-center font-medium">✓ Guaranteed delivery by <span class="font-bold" id="delivDate">soon</span></div>
+    <div class="mt-3 text-center text-sm text-gray-800 font-medium">⭐ 4.9/5 from thousands of happy customers</div>
+
+    <!-- LETTER -->
+    <div class="p-6 bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 border border-amber-200 rounded-xl">
+      <div class="text-gray-800 space-y-3">
+        <p class="text-base leading-relaxed"><span class="font-semibold text-amber-700">Dear friend,</span></p>
+        <p class="text-sm leading-relaxed">We can tell you've put real thought into this gift for <span data-name>them</span> — and we're so excited to help you create something truly unforgettable.</p>
+        <p class="text-sm leading-relaxed">A one-of-a-kind, professionally produced song like this would normally run into the hundreds from a studio songwriter. Yours is a small fraction of that, because we believe a moment like this should be within everyone's reach.</p>
+        <p class="text-sm leading-relaxed italic text-gray-700">Thank you for trusting us with your story. We can't wait to bring it to life.</p>
+        <p class="text-right text-sm font-medium text-amber-700">— The Melonia Team</p>
+      </div>
+    </div>
+
+    <!-- REVIEWS -->
+    <div class="bg-white border-2 border-gray-100 rounded-xl p-6">
+      <div class="flex items-center gap-2 mb-4"><svg class="lucide h-5 w-5 text-yellow-400" style="fill:#facc15"><use href="#ic-star"/></svg><h3 class="font-semibold text-gray-900">Real Customer Reviews</h3></div>
+      <div class="space-y-4">
+        <div class="border-b border-gray-100 last:border-0 pb-4 last:pb-0">
+          <div class="flex text-yellow-400 mb-1" data-stars="5" style="fill:#facc15"></div>
+          <p class="text-sm text-gray-900">“Her 50th birthday song made her feel like the most special woman in the world!”</p>
+          <p class="text-xs text-gray-700 font-medium mt-1">— James C. <span class="text-green-600 font-semibold">✓ Verified Buyer</span></p>
+        </div>
+        <div class="border-b border-gray-100 last:border-0 pb-4 last:pb-0">
+          <div class="flex text-yellow-400 mb-1" data-stars="5" style="fill:#facc15"></div>
+          <p class="text-sm text-gray-900">“She couldn't believe I got her a song about her life. Best birthday reaction ever!”</p>
+          <p class="text-xs text-gray-700 font-medium mt-1">— William D. <span class="text-green-600 font-semibold">✓ Verified Buyer</span></p>
+        </div>
+        <div class="border-b border-gray-100 last:border-0 pb-4 last:pb-0">
+          <div class="flex text-yellow-400 mb-1" data-stars="5" style="fill:#facc15"></div>
+          <p class="text-sm text-gray-900">“Absolutely beautiful, you captured such special moments… we both were crying!”</p>
+          <p class="text-xs text-gray-700 font-medium mt-1">— Pamela S. <span class="text-green-600 font-semibold">✓ Verified Buyer</span></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SONGS (vinyl) -->
+    <div class="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-100 rounded-xl p-5 md:p-6">
+      <div class="flex items-center gap-2 mb-3"><svg class="lucide h-5 w-5 text-purple-600 shrink-0"><use href="#ic-music"/></svg><h3 class="font-bold text-gray-900">Songs like yours</h3></div>
+      <p class="text-sm text-gray-600 mb-4">Imagine <span data-name>them</span> hearing a song like this...</p>
+      <div class="grid grid-cols-2 gap-3" id="songs"></div>
+      <p class="text-center text-sm text-purple-700 font-medium mt-4">Your song will be just as special</p>
+    </div>
+
+    <!-- VIDEO -->
+    <div class="bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 border-2 border-rose-200 rounded-xl overflow-hidden">
+      <div class="px-5 pt-5 pb-3">
+        <div class="flex items-center gap-2 mb-2"><svg class="lucide w-5 h-5 text-rose-500" style="fill:#f43f5e"><use href="#ic-heart"/></svg><h3 class="font-bold text-gray-900 text-lg">See What This Moment Looks Like</h3></div>
+        <p class="text-gray-700 text-sm leading-relaxed">Watch someone hear their personalized song for the first time. <span class="text-rose-600 font-medium">This could be <span data-name>them</span>.</span></p>
+      </div>
+      <div class="relative mx-4 mb-4 rounded-xl overflow-hidden shadow-lg" id="videoWrap" style="aspect-ratio:16/10;background:#000">
+        <video id="reactVid" class="absolute inset-0 w-full h-full object-cover bg-black" playsinline preload="none" poster="poster.jpg" data-src="https://cdn.shopify.com/videos/c/vp/f6f980597a7a4ea5b977be286a68f61e/f6f980597a7a4ea5b977be286a68f61e.HD-720p-4.5Mbps-89069272.mp4"></video>
+        <button id="videoBtn" class="absolute inset-0 flex flex-col items-center justify-center transition" style="background:rgba(0,0,0,.35)">
+          <div class="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/95 flex items-center justify-center shadow-lg"><svg class="lucide w-7 h-7 text-rose-600" style="margin-left:3px"><use href="#ic-play"/></svg></div>
+          <span class="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded-full" style="margin-top:12px">Watch a Reaction</span>
+          <span class="text-white/80 text-xs" style="margin-top:4px">3:38</span>
+        </button>
+      </div>
+      <div class="px-5 pb-5">
+        <div class="bg-white/60 rounded-lg p-4 mb-4"><p class="text-gray-700 text-sm leading-relaxed">Watch as she realizes every word was written just for her — a personalized song celebrating a journey only the two of them share.</p></div>
+        <div class="text-center space-y-3">
+          <p class="text-rose-800 font-medium text-sm">Ready to create this moment for <span data-name>them</span>?</p>
+          <button data-proceed class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-bold rounded-xl shadow-lg" style="border:none;cursor:pointer;box-shadow:0 10px 24px rgba(244,63,94,.3)"><svg class="lucide w-4 h-4"><use href="#ic-arrow-up"/></svg>Yes, I'm Ready</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GIFT -->
+    <div class="bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 border-2 border-rose-200 rounded-xl p-6 text-center">
+      <h3 class="font-bold text-gray-900 text-lg mb-4">💝 A Gift That Gives Love Back</h3>
+      <div class="space-y-4 text-gray-800">
+        <p class="text-base leading-relaxed">Imagine the moment they press play.<br><span class="font-medium text-rose-700">Their eyes fill with tears. They can't believe what they're hearing.</span></p>
+        <p class="text-base leading-relaxed">It's their story — their memories, their name, your love — <span class="font-medium">turned into music just for them.</span></p>
+        <div class="pt-2 border-t border-rose-200 mt-4">
+          <p class="text-rose-800 font-medium italic">And in that moment, you'll feel it too.</p>
+          <p class="text-sm text-gray-700 mt-2">The joy of giving something that truly matters. A gift they'll treasure forever — and you'll never forget giving.</p>
+        </div>
+        <p class="text-xs pt-3 font-medium" style="color:rgba(225,29,72,.8)">This isn't just a gift. It's a memory you create together.</p>
+      </div>
+    </div>
+
+    <!-- LIMITED -->
+    <div class="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-xl p-6">
+      <h3 class="font-bold text-amber-800 mb-3">⏰ Limited Time — Special Pricing</h3>
+      <p class="text-gray-900 text-sm leading-relaxed">Comparable custom songs typically cost <span class="font-semibold">a few hundred dollars and up</span>. For a limited time, yours is available for <span class="text-amber-700 font-semibold">a small fraction of that</span> — same care, same studio quality.</p>
+    </div>
+
+    <!-- COMPARISON -->
+    <div class="bg-white border-2 border-gray-100 rounded-xl overflow-hidden">
+      <div class="relative aspect-[16/9] w-full" style="background:#111">
+        <img src="compare.jpg" alt="Regular gift vs MeloniaSong" class="object-cover absolute inset-0 w-full h-full">
+      </div>
+      <div class="p-4 sm:p-6">
+        <h3 class="text-lg sm:text-xl font-bold text-gray-900 text-center mb-4">The Difference Is <span class="text-orange-600">Unmistakable</span></h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <p class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Regular Gift</p>
+            <ul class="space-y-2 text-sm text-gray-600">
+              <li class="flex items-start gap-2"><span class="text-gray-400 mt-0.5">•</span><span>Forgotten in days</span></li>
+              <li class="flex items-start gap-2"><span class="text-gray-400 mt-0.5">•</span><span>Says "I grabbed something"</span></li>
+              <li class="flex items-start gap-2"><span class="text-gray-400 mt-0.5">•</span><span>Polite thank you, then... nothing</span></li>
+            </ul>
+          </div>
+          <div class="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-4 border-2 border-orange-200">
+            <p class="text-sm font-semibold text-orange-600 uppercase tracking-wide mb-2">A Melonia Song</p>
+            <ul class="space-y-2 text-sm text-gray-800">
+              <li class="flex items-start gap-2"><span class="text-orange-500 mt-0.5">✓</span><span>Treasured <strong>forever</strong></span></li>
+              <li class="flex items-start gap-2"><span class="text-orange-500 mt-0.5">✓</span><span>Says "I truly <strong>see</strong> you"</span></li>
+              <li class="flex items-start gap-2"><span class="text-orange-500 mt-0.5">✓</span><span><strong>Happy tears</strong>, played on repeat</span></li>
+            </ul>
+          </div>
+        </div>
+        <p class="mt-4 text-center text-sm text-gray-700 italic">Which reaction do you want to give?</p>
+        <button data-proceed class="mt-4 w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-xl flex items-center justify-center gap-2" style="border:none;cursor:pointer;box-shadow:0 10px 24px rgba(233,118,75,.3)"><svg class="lucide h-4 w-4"><use href="#ic-arrow-up"/></svg>Give the Gift of a Lifetime</button>
+      </div>
+    </div>
+
+    <!-- GUARANTEE -->
+    <div class="bg-green-50 border-2 border-green-200 rounded-xl p-6">
+      <div class="flex items-center gap-2 mb-4"><svg class="lucide h-6 w-6 text-green-600 shrink-0"><use href="#ic-shield"/></svg><h3 class="font-bold text-green-800">100% Money Back Guarantee</h3></div>
+      <ul class="space-y-3">
+        <li class="flex items-start gap-3"><svg class="lucide h-5 w-5 text-green-600 mt-0.5"><use href="#ic-check"/></svg><div><p class="font-medium text-gray-900 text-sm">Not satisfied? Full refund, no questions asked</p></div></li>
+        <li class="flex items-start gap-3"><svg class="lucide h-5 w-5 text-green-600 mt-0.5"><use href="#ic-check"/></svg><div><p class="font-medium text-gray-900 text-sm">30 days to decide, zero risk</p></div></li>
+        <li class="flex items-start gap-3"><svg class="lucide h-5 w-5 text-green-600 mt-0.5"><use href="#ic-check"/></svg><div><p class="font-medium text-gray-900 text-sm">Friendly support team ready to help</p></div></li>
+      </ul>
+    </div>
+
+    <!-- INCLUDED -->
+    <div class="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-100 rounded-xl p-6">
+      <div class="flex items-center gap-2 mb-4"><svg class="lucide h-5 w-5 text-blue-600 shrink-0"><use href="#ic-gift"/></svg><h3 class="font-bold text-gray-900">Everything Included</h3></div>
+      <ul class="space-y-3">
+        <li class="flex items-start gap-3"><svg class="lucide h-5 w-5 text-blue-600 mt-0.5"><use href="#ic-check"/></svg><div><p class="font-medium text-gray-900 text-sm">Studio-Quality Custom Song</p><p class="text-gray-700 text-xs">Professional production, ready to share anywhere</p></div></li>
+        <li class="flex items-start gap-3"><svg class="lucide h-5 w-5 text-blue-600 mt-0.5"><use href="#ic-check"/></svg><div><p class="font-medium text-gray-900 text-sm">Personalized Lyrics for <span data-name>them</span></p><p class="text-gray-700 text-xs">Written from your story, truly one-of-a-kind</p></div></li>
+        <li class="flex items-start gap-3"><svg class="lucide h-5 w-5 text-blue-600 mt-0.5"><use href="#ic-check"/></svg><div><p class="font-medium text-gray-900 text-sm">Delivery Guarantee</p><p class="text-gray-700 text-xs">On time or your money back</p></div></li>
+        <li class="flex items-start gap-3"><svg class="lucide h-5 w-5 text-blue-600 mt-0.5"><use href="#ic-check"/></svg><div><p class="font-medium text-gray-900 text-sm">Free Custom Album Art</p><p class="text-gray-700 text-xs">Professional artwork included</p></div></li>
+      </ul>
+    </div>
+
+    <!-- STATS -->
+    <div class="bg-white border-2 border-gray-200 rounded-xl p-6">
+      <div class="grid grid-cols-2 gap-4 text-center">
+        <div class="p-3"><div class="text-2xl font-bold text-gray-900">1000s</div><div class="text-sm text-gray-800 font-medium">Songs Created</div></div>
+        <div class="p-3"><div class="text-2xl font-bold text-yellow-500">4.9★</div><div class="text-sm text-gray-800 font-medium">Customer Rating</div></div>
+        <div class="p-3"><div class="text-2xl font-bold text-green-600">100%</div><div class="text-sm text-gray-800 font-medium">Satisfaction</div></div>
+        <div class="p-3"><div class="flex justify-center mb-1"><svg class="lucide h-6 w-6 text-blue-600"><use href="#ic-shield"/></svg></div><div class="text-sm text-gray-800 font-medium">Secure Checkout</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BIG REVIEWS -->
+  <div class="mt-8 pt-8 border-t border-gray-200">
+    <div class="flex flex-col items-center gap-2 mb-6">
+      <div class="flex items-center gap-1" data-stars="5" style="fill:#facc15;color:#facc15"></div>
+      <span class="text-gray-600 text-sm font-medium">Loved by thousands of happy customers</span>
+    </div>
+    <div class="grid grid-cols-1 gap-4" id="bigrev"></div>
+    <p class="text-center text-sm text-gray-600 mt-6 italic">Join thousands of happy customers who've created unforgettable gifts.</p>
+  </div>
+
+  <div class="mt-12 mb-24 text-center text-sm text-gray-600">
+    <p><a class="text-gray-700 hover:underline font-medium" href="#">Terms of Service</a> · <a class="text-gray-700 hover:underline font-medium" href="#">Privacy Policy</a> · <a class="text-gray-700 hover:underline font-medium" href="#">Media Release</a></p>
+  </div>
+</div>
+
+<div class="mln-sticky"><button data-proceed><svg class="lucide w-4 h-4"><use href="#ic-arrow-up"/></svg>Enter Email To Continue</button></div>
+
+<script>
+(function(){
+  var CDN='https://cdn.shopify.com/s/files/1/0862/1391/9047/files/';
+  var $=function(s,c){return (c||document).querySelector(s);};
+  var $$=function(s,c){return Array.prototype.slice.call((c||document).querySelectorAll(s));};
+  var BRIEF={};
+
+  // stars filler
+  $$('[data-stars]').forEach(function(el){ var n=+el.getAttribute('data-stars'); var sz=el.className.indexOf('gap-1')>=0?'h-5 w-5':'h-3 w-3'; var h=''; for(var i=0;i<n;i++)h+='<svg class="lucide '+sz+'"><use href="#ic-star"/></svg>'; el.innerHTML=h; });
+
+  // name substitution from parent brief
+  function applyName(){ var nm=BRIEF.name?(BRIEF.name+"'s"):'their'; $$('[data-name]').forEach(function(e){ e.textContent=nm; }); }
+  applyName();
+
+  // delivery date +7
+  (function(){ var d=$('#delivDate'); if(d){ var dt=new Date(Date.now()+7*864e5); d.textContent=dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); } })();
+
+  // SONGS (vinyl)
+  var SONGS=[
+    {img:'parents__-1365x2048_1.webp?v=1784169175',t:'Sunday Dinner',c:'From a daughter to her mom',a:'preview_MLN-FQUNQP.mp3?v=1785774433'},
+    {img:'partner-1536x1024_1.webp?v=1784169144',t:'Fifty Winters',c:'From Sam to his wife Rita',a:'preview_MLN-MXB3WJ.mp3?v=1785775075'},
+    {img:'strengh_-1536x1024_1.webp?v=1784169199',t:'Quiet Hero',c:'From a son to his dad',a:'preview_MLN-PU5NQA.mp3?v=1785773385'},
+    {img:'loss__-1367x2048_1.webp?v=1784169166',t:'Sweetheart',c:'In memory of Grandma',a:'preview_MLN-LSAUSE.mp3?v=1785770870'}
+  ];
+  var songsWrap=$('#songs'); var cur=null;
+  SONGS.forEach(function(s){
+    var d=document.createElement('div'); d.className='mln-song flex flex-col items-center';
+    d.innerHTML=''+
+      '<div class="relative overflow-hidden rounded-lg w-full aspect-square" style="cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.18)">'+
+        '<img class="mln-cover object-cover" src="'+CDN+s.img+'" alt="" style="position:absolute;inset:0;width:100%;height:100%;transition:opacity .3s" loading="lazy">'+
+        '<div class="mln-song-fig"><div class="mln-disc" style="position:relative;width:88%;aspect-ratio:1/1;border-radius:50%;background:#000;box-shadow:0 10px 24px rgba(0,0,0,.4)">'+
+          '<div style="position:absolute;inset:8%;border-radius:50%;background:#09090b;border:4px solid #27272a"></div>'+
+          '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:38%;aspect-ratio:1/1;border-radius:50%;overflow:hidden;border:2px solid #3f3f46"><img src="'+CDN+s.img+'" style="width:100%;height:100%;object-fit:cover"></div>'+
+          '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:#a1a1aa"></div>'+
+        '</div></div>'+
+        '<button class="mln-play" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10;width:46px;height:46px;border-radius:50%;border:none;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.3)"><svg class="lucide w-5 h-5" style="color:#191510;margin-left:2px"><use href="#ic-play"/></svg></button>'+
+      '</div>'+
+      '<div class="text-center w-full mt-2"><p class="font-medium text-foreground truncate text-xs" style="color:#191510">'+s.t+'</p></div>'+
+      '<div class="mln-prog-wrap w-full px-1"><div style="position:relative;height:5px;background:#e4e4e7;border-radius:999px"><div class="mln-fill" style="position:absolute;height:100%;width:0;border-radius:999px;background:#E9764B"></div></div>'+
+        '<div class="flex justify-between items-center mt-1" style="font-size:11px;color:#7d6b4f"><span class="mln-cur">0:00</span><span class="mln-dur">0:00</span></div></div>';
+    var au=new Audio(); au.preload='none'; au.src=CDN+s.a;
+    var disc=$('.mln-disc',d), fill=$('.mln-fill',d), curT=$('.mln-cur',d), durT=$('.mln-dur',d);
+    function fmt(x){ x=Math.floor(x||0); return Math.floor(x/60)+':'+('0'+(x%60)).slice(-2); }
+    function toggle(){ if(au.paused){ if(cur&&cur!==au)cur.pause(); au.play(); cur=au; d.classList.add('playing'); disc.classList.add('spin'); } else { au.pause(); } }
+    $('.relative',d).addEventListener('click',toggle);
+    au.addEventListener('loadedmetadata',function(){ durT.textContent=fmt(au.duration); });
+    au.addEventListener('timeupdate',function(){ if(au.duration){ fill.style.width=(au.currentTime/au.duration*100)+'%'; curT.textContent=fmt(au.currentTime); } });
+    au.addEventListener('pause',function(){ d.classList.remove('playing'); disc.classList.remove('spin'); });
+    au.addEventListener('play',function(){ d.classList.add('playing'); disc.classList.add('spin'); });
+    au.addEventListener('ended',function(){ fill.style.width='0%'; curT.textContent='0:00'; });
+    songsWrap.appendChild(d);
+  });
+
+  // BIG REVIEWS
+  var BR=[
+    {i:'D',g:'from-rose-500 to-pink-500',t:'"It\'s absolutely perfect. You made us both ',h:'cry in the best way possible',e:'."',n:'Dawn R.'},
+    {i:'N',g:'from-amber-500 to-orange-500',t:'"This song is not just beautiful — ',h:'it is sacred',e:'. When he heard it, he cried and played it again and again."',n:'Nilufar K.'},
+    {i:'E',g:'from-sky-500 to-blue-500',t:'"It played during the father-daughter dance. It felt like ',h:'the most magical moment',e:'. My dad kept asking \'how did they know?\'"',n:'Emma S.'},
+    {i:'D',g:'from-rose-500 to-pink-500',t:'"Ordered one for my wife\'s birthday. Impressive lyrics and melody — ',h:'better than I expected',e:'!"',n:'Dave Mark'}
+  ];
+  var brWrap=$('#bigrev');
+  BR.forEach(function(r){
+    var el=document.createElement('div'); el.className='bg-white rounded-xl p-4 shadow-sm border border-gray-100 relative';
+    el.innerHTML=''+
+      '<div class="absolute top-3 right-4 text-4xl text-gray-100 font-serif leading-none select-none">“</div>'+
+      '<div class="flex gap-3">'+
+        '<div class="w-10 h-10 rounded-full bg-gradient-to-br '+r.g+' flex items-center justify-center text-white font-bold" style="flex-shrink:0">'+r.i+'</div>'+
+        '<div class="flex-1 min-w-0">'+
+          '<div class="flex mb-1" data-brstars style="color:#facc15;fill:#facc15"></div>'+
+          '<p class="text-sm text-gray-800 leading-relaxed mb-2 relative z-10">'+r.t+'<span class="font-semibold text-purple-700">'+r.h+'</span>'+r.e+'</p>'+
+          '<div class="flex items-center gap-2 text-xs"><span class="font-medium text-gray-700">— '+r.n+'</span><span class="text-green-600 font-semibold">✓ Verified Buyer</span></div>'+
+        '</div>'+
+      '</div>';
+    brWrap.appendChild(el);
+  });
+  $$('[data-brstars]').forEach(function(el){ var h=''; for(var i=0;i<5;i++)h+='<svg class="lucide h-3.5 w-3.5"><use href="#ic-star"/></svg>'; el.innerHTML=h; });
+
+  // VIDEO
+  var vw=$('#videoWrap'), vid=$('#reactVid'), vbtn=$('#videoBtn');
+  if(vw){ vw.addEventListener('click',function(){ if(!vid.getAttribute('src'))vid.src=vid.getAttribute('data-src'); if(vid.paused){ vid.play(); vbtn.style.display='none'; vid.setAttribute('controls','controls'); } else { vid.pause(); vbtn.style.display='flex'; } }); }
+
+  // EMAIL + CHECKOUT (postMessage to parent Shopify)
+  var email=$('#email'), createBtn=$('#createBtn'), emailErr=$('#emailErr');
+  function valid(s){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s||'').trim()); }
+  function refresh(){ var ok=valid(email.value); createBtn.disabled=!ok; createBtn.classList.toggle('mln-ready',ok); }
+  email.addEventListener('input',function(){ emailErr.style.display='none'; refresh(); });
+  function checkout(){ var e=(email.value||'').trim(); if(!valid(e)){ emailErr.style.display='block'; return; } createBtn.disabled=true; createBtn.textContent='Loading checkout…'; parent.postMessage({type:'mln-checkout',email:e},'*'); }
+  createBtn.addEventListener('click',checkout);
+  function proceed(){ if(valid(email.value)){ checkout(); return; } $('#emailCard').scrollIntoView({behavior:'smooth',block:'center'}); setTimeout(function(){ email.focus(); },350); }
+  $$('[data-proceed]').forEach(function(b){ b.addEventListener('click',proceed); });
+
+  // receive brief (name) from parent
+  window.addEventListener('message',function(ev){ var d=ev.data||{}; if(d&&d.type==='mln-brief'){ BRIEF=d.brief||{}; applyName(); if(BRIEF.email&&!email.value){ email.value=BRIEF.email; refresh(); } } });
+  parent.postMessage({type:'mln-ready'},'*');
+})();
+</script>
+</body>
+</html>
