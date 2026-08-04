@@ -14,11 +14,11 @@
   html,body{ margin:0; padding:0; background:#fefdfb; color:#111827; font-family:var(--font-inter); -webkit-font-smoothing:antialiased; }
   *{ box-sizing:border-box; }
   /* Melonia orange overrides (leur DA -> orange Melonia) */
-  .text-orange-600,.text-orange-500{ color:#E9764B !important; }
+  .text-orange-600,.text-orange-500{ color:#F15E1E !important; }
   .bg-coral-500{ background:#9aa6b8 !important; }
-  .border-orange-200{ border-color:#FAD9BE !important; }
-  .from-orange-500.to-orange-600, .bg-gradient-to-r.from-orange-500{ background-image:linear-gradient(to right,#E9764B,#DA6236) !important; }
-  .mln-ready{ background:linear-gradient(to right,#E9764B,#DA6236) !important; box-shadow:0 12px 30px rgba(233,118,75,.38); }
+  .border-orange-200{ border-color:#FBC9A6 !important; }
+  .from-orange-500.to-orange-600, .bg-gradient-to-r.from-orange-500{ background-image:linear-gradient(to right,#FF7A2E,#F0530C) !important; color:#fff !important; }
+  .mln-ready{ background:linear-gradient(to right,#FF7A2E,#F0530C) !important; color:#fff !important; box-shadow:0 12px 34px rgba(255,106,28,.55); }
   /* vinyle */
   @keyframes mlnspin{ to{ transform:rotate(360deg); } }
   .mln-disc.spin{ animation:mlnspin 3.2s linear infinite; }
@@ -29,8 +29,8 @@
   .mln-song.playing .mln-prog-wrap{ max-height:60px; opacity:1; margin-top:.5rem; }
   /* sticky */
   .mln-sticky{ position:fixed; left:0; right:0; bottom:0; z-index:60; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); background:linear-gradient(transparent,#fefdfb 42%); }
-  .mln-sticky button{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%; max-width:640px; margin:0 auto; background:#2d4a6f; color:#fff; font-weight:700; font-size:17px; padding:15px; border-radius:14px; border:none; cursor:pointer; box-shadow:0 -2px 16px rgba(0,0,0,.08),0 10px 28px rgba(45,74,111,.32); }
-  .mln-urg{ background:linear-gradient(90deg,#f26b5e,#e8544a); color:#fff; text-align:center; font-size:14px; font-weight:700; letter-spacing:.35px; padding:12px 16px; }
+  .mln-sticky button{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%; max-width:640px; margin:0 auto; background:linear-gradient(to right,#FF7A2E,#F0530C); color:#fff; font-weight:800; font-size:17px; padding:16px; border-radius:14px; border:none; cursor:pointer; box-shadow:0 -2px 16px rgba(0,0,0,.06),0 12px 32px rgba(255,106,28,.55); }
+  .mln-urg{ background:linear-gradient(90deg,#ff3b30,#e01212); color:#fff; text-align:center; font-size:15px; font-weight:700; letter-spacing:.4px; padding:13px 16px; margin:0; }
   .lucide{ display:inline-block; vertical-align:middle; }
 </style>
 </head>
@@ -122,7 +122,7 @@
         <p class="text-gray-700 text-sm leading-relaxed">Watch someone hear their personalized song for the first time. <span class="text-rose-600 font-medium">This could be <span data-name>them</span>.</span></p>
       </div>
       <div class="relative mx-4 mb-4 rounded-xl overflow-hidden shadow-lg" id="videoWrap" style="aspect-ratio:16/10;background:#000">
-        <video id="reactVid" class="absolute inset-0 w-full h-full object-cover bg-black" playsinline preload="none" poster="poster.jpg" data-src="https://cdn.shopify.com/videos/c/vp/f6f980597a7a4ea5b977be286a68f61e/f6f980597a7a4ea5b977be286a68f61e.HD-720p-4.5Mbps-89069272.mp4"></video>
+        <video id="reactVid" class="absolute inset-0 w-full h-full object-cover bg-black" playsinline preload="none" poster="poster.jpg" data-src="https://cdn.shopify.com/videos/c/o/v/85f1e87ddd084df08d04fea82b1cb3c3.mov"></video>
         <button id="videoBtn" class="absolute inset-0 flex flex-col items-center justify-center transition" style="background:rgba(0,0,0,.35)">
           <div class="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/95 flex items-center justify-center shadow-lg"><svg class="lucide w-7 h-7 text-rose-600" style="margin-left:3px"><use href="#ic-play"/></svg></div>
           <span class="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded-full" style="margin-top:12px">Watch a Reaction</span>
@@ -161,7 +161,7 @@
     <!-- COMPARISON -->
     <div class="bg-white border-2 border-gray-100 rounded-xl overflow-hidden">
       <div class="relative aspect-[16/9] w-full" style="background:#111">
-        <img src="compare.jpg" alt="Regular gift vs MeloniaSong" class="object-cover absolute inset-0 w-full h-full">
+        <img src="https://cdn.shopify.com/s/files/1/0862/1391/9047/files/hf_20260804_094858_4deb9645-4c3f-4200-988b-9dcff3d3befd.png?v=1785843630" alt="Regular gift vs MeloniaSong" class="object-cover absolute inset-0 w-full h-full">
       </div>
       <div class="p-4 sm:p-6">
         <h3 class="text-lg sm:text-xl font-bold text-gray-900 text-center mb-4">The Difference Is <span class="text-orange-600">Unmistakable</span></h3>
