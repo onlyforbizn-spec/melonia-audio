@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MeloniaSong — Custom Songs for Life's Special Moments</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ts1.css">
+<link rel="stylesheet" href="ts2.css">
+<style>
+  :root{ --font-inter:"Inter","Inter Fallback",sans-serif; --font-cormorant:"Cormorant Garamond","Cormorant Garamond Fallback",Georgia,serif; --font-caveat:"Caveat",cursive; --font-jetbrains:"JetBrains Mono",monospace; }
+  html,body{ margin:0; padding:0; background:#fefdfb; color:#191510; font-family:var(--font-inter); -webkit-font-smoothing:antialiased; }
+  *{ box-sizing:border-box; }
+  /* accent orange Melonia fluo (remplace leur coral) */
+  .bg-coral-500{ background-color:#F15E1E !important; }
+  .text-coral-500,.text-coral-600{ color:#F15E1E !important; }
+  .text-coral-300{ color:#FFB48C !important; }
+  .border-coral-200{ border-color:#FBC9A6 !important; }
+  .bg-coral-100{ background-color:#FFE7D6 !important; }
+  .bg-coral-50{ background-color:#FFF3EC !important; }
+  .from-coral-500{ --tw-gradient-from:#F15E1E var(--tw-gradient-from-position)!important; --tw-gradient-to:rgb(241 94 30/0) var(--tw-gradient-to-position)!important; --tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to)!important; }
+  .cta-primary{ background:linear-gradient(to right,#FF7A2E,#F0530C)!important; color:#fff!important; box-shadow:0 12px 30px rgba(255,106,28,.45)!important; border:none!important; }
+  .cta-primary:hover{ filter:brightness(1.03); }
+  /* helpers video */
+  .mln-vid-wrap{ position:relative; }
+  .mln-vid-wrap video{ display:block; }
+  /* vinyle */
+  @keyframes mlnspin{ to{ transform:rotate(360deg); } }
+  .mln-disc.spin{ animation:mlnspin 3.2s linear infinite; }
+  .mln-song-fig{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .35s ease; pointer-events:none; }
+  .mln-song.playing .mln-song-fig{ opacity:1; }
+  .mln-song.playing .mln-cover{ opacity:0; }
+  .mln-prog-wrap{ max-height:0; opacity:0; overflow:hidden; transition:all .3s ease; }
+  .mln-song.playing .mln-prog-wrap{ max-height:60px; opacity:1; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="ic-star" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.12 2.12 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.12 2.12 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16z"/></symbol>
+<symbol id="ic-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C10.53 3.8 13 5 15 5a1 1 0 0 1 1 1z"/></symbol>
+<symbol id="ic-play" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+<symbol id="ic-music" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+<symbol id="ic-gift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></symbol>
+<symbol id="ic-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="ic-heart" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></symbol>
+<symbol id="ic-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></symbol>
+<symbol id="ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="ic-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="ic-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+</defs></svg>
+
+<nav class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-cream-200">
+  <div class="container-wide flex items-center justify-between py-3">
+    <div class="flex items-center gap-2"><svg class="w-6 h-6 text-coral-500"><use href="#ic-music"/></svg><span class="font-serif text-xl font-semibold text-chapel-900">MeloniaSong</span></div>
+    <button class="cta-primary text-sm" style="padding:10px 20px" data-goquiz>Create My Song</button>
+  </div>
+</nav>
+
+<main class="flex-1">
+
+  <!-- ===================== SECTION 0 — HERO ===================== -->
+  <section class="bg-gradient-to-b from-cream-50 to-cream-100 pt-0 pb-8 md:py-16 lg:py-20">
+    <div class="container-wide">
+
+      <!-- MOBILE -->
+      <div class="lg:hidden">
+        <div class="text-center px-2 pt-4 pb-3">
+          <h1 class="text-2xl sm:text-3xl font-serif font-medium text-chapel-900 leading-tight">The joy of seeing their happy tears is priceless</h1>
+        </div>
+        <div class="relative overflow-hidden shadow-xl mb-5 -mx-4 sm:-mx-6 md:mx-0 md:rounded-2xl">
+          <div class="mln-vid-wrap" style="aspect-ratio:4/5;background:#000">
+            <video class="absolute inset-0 w-full h-full object-cover" playsinline muted loop preload="metadata" poster="poster.jpg" data-src="https://cdn.shopify.com/videos/c/o/v/85f1e87ddd084df08d04fea82b1cb3c3.mov"></video>
+            <div class="absolute bottom-3 right-3 flex gap-2">
+              <button class="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white" data-vplay><svg class="w-4 h-4"><use href="#ic-play"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="text-center px-2">
+          <p class="text-xs uppercase tracking-wider text-chapel-500 mb-3">Handcrafted Songs For Life's Biggest Moments</p>
+          <p class="text-base text-chapel-600 mb-6 max-w-md mx-auto">Surprise your loved one with a custom song they'll play forever.</p>
+          <a class="cta-primary w-full text-center flex items-center justify-center gap-2 mb-4" data-goquiz>Start My Custom Song</a>
+          <p class="text-sm text-chapel-500 mb-6">Crafted With Heart &amp; Delivered With Love</p>
+          <div class="flex flex-col items-center gap-2">
+            <div class="flex items-center gap-1 text-gold-400" style="color:#F2B01E" data-stars="5"></div>
+            <div class="flex items-center gap-2">
+              <div class="flex -space-x-2">
+                <div class="w-8 h-8 rounded-full border-2 border-white overflow-hidden relative" style="background:#E9764B"></div>
+                <div class="w-8 h-8 rounded-full border-2 border-white overflow-hidden relative" style="background:#C6402A"></div>
+                <div class="w-8 h-8 rounded-full border-2 border-white overflow-hidden relative" style="background:#4A6FA5"></div>
+              </div>
+              <span class="text-sm text-chapel-600"><span class="font-semibold text-gold-600" style="color:#B8860B">Excellent</span> · thousands of happy customers</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DESKTOP -->
+      <div class="hidden lg:grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+        <div class="text-center lg:text-left">
+          <a class="inline-flex items-center gap-2 bg-white rounded-full px-4 py-2 shadow-sm mb-6 hover:shadow-md" data-goquiz>
+            <span class="flex -space-x-1 text-gold-400" style="color:#F2B01E" data-stars="5"></span>
+            <span class="text-sm text-chapel-600 font-medium">See Our 5-Star Reviews →</span>
+          </a>
+          <h1 class="text-4xl md:text-5xl lg:text-6xl font-serif font-medium text-chapel-900 leading-tight mb-4">The joy of seeing their happy tears is priceless</h1>
+          <p class="text-lg md:text-xl text-chapel-600 mb-8 max-w-xl mx-auto lg:mx-0">Turn your story into a professionally produced, one-of-a-kind song — written from your memories, delivered in days.</p>
+          <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
+            <a class="cta-primary text-center flex items-center justify-center gap-2 whitespace-nowrap" data-goquiz>Start Your Song</a>
+            <a class="cta-secondary text-center flex items-center justify-center gap-2" data-goquiz>See How It Works</a>
+          </div>
+          <div class="flex flex-wrap gap-4 justify-center lg:justify-start">
+            <div class="trust-badge"><svg class="w-4 h-4"><use href="#ic-shield"/></svg><span>100% Satisfaction Guarantee</span></div>
+            <div class="trust-badge"><svg class="w-4 h-4"><use href="#ic-music"/></svg><span>Professionally Produced</span></div>
+          </div>
+        </div>
+        <div class="relative">
+          <div class="relative overflow-hidden shadow-2xl rounded-2xl mln-vid-wrap" style="aspect-ratio:4/5;background:#000">
+            <video class="absolute inset-0 w-full h-full object-cover" playsinline muted loop preload="metadata" poster="poster.jpg" data-src="https://cdn.shopify.com/videos/c/o/v/85f1e87ddd084df08d04fea82b1cb3c3.mov"></video>
+            <div class="absolute bottom-3 right-3 flex gap-2">
+              <button class="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white" data-vplay><svg class="w-4 h-4"><use href="#ic-play"/></svg></button>
+            </div>
+          </div>
+          <p class="text-center text-sm text-chapel-500 mt-4 italic">Create a moment they'll treasure forever</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 1 — REACTIONS (dark) ===================== -->
+  <section class="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden bg-chapel-900 py-12 text-cream-50 md:py-20">
+    <div class="mx-auto max-w-6xl px-4 text-center">
+      <p class="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-coral-300">Real reactions</p>
+      <h2 class="mx-auto max-w-4xl font-serif text-3xl font-semibold leading-tight md:text-5xl">This is the gift that brings out the real reaction</h2>
+      <p class="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-cream-200 md:text-lg">Watch what happens when someone hears a song written from their own story for the very first time.</p>
+    </div>
+    <div class="mx-auto mt-8 max-w-6xl px-4 md:mt-12">
+      <div class="flex gap-3 md:gap-4 overflow-x-auto scrollbar-hide pb-2" id="mlnReact1"></div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 2 — HOW IT WORKS ===================== -->
+  <section class="scroll-mt-24 bg-cream-50 px-6 py-20 md:px-10 md:py-28 lg:px-20">
+    <div class="mx-auto mb-14 max-w-3xl text-center">
+      <p class="mb-4 font-mono text-xs uppercase tracking-[0.18em] text-coral-500">How it works</p>
+      <h2 class="font-serif text-4xl leading-tight text-chapel-900 md:text-6xl">From your story to their tears</h2>
+      <p class="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-chapel-600 md:text-lg">Four simple steps. One unforgettable song. Ready in days.</p>
+    </div>
+    <div class="relative mx-auto grid max-w-7xl gap-8 pt-8 md:grid-cols-2 lg:grid-cols-4 lg:gap-6" id="mlnSteps"></div>
+    <div class="mt-16 text-center">
+      <a class="cta-primary inline-flex" data-goquiz>Start your song</a>
+      <p class="mt-4 font-mono text-xs tracking-[0.04em] text-chapel-500">Takes about 5 minutes — nothing to write, we guide you</p>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 3 — MEMORABLE GIFT ===================== -->
+  <section class="relative w-full overflow-hidden bg-chapel-900">
+    <div class="relative w-full" style="min-height:520px">
+      <img src="https://cdn.shopify.com/s/files/1/0862/1391/9047/files/partner-1536x1024_1.webp?v=1784169144" alt="" class="absolute inset-0 w-full h-full object-cover opacity-40">
+      <div class="absolute inset-0" style="background:linear-gradient(to top,rgba(20,16,10,.85),rgba(20,16,10,.35))"></div>
+      <div class="relative z-10 flex flex-col items-center justify-center text-center px-6 py-24 md:py-32">
+        <h2 class="font-serif text-3xl md:text-5xl font-medium text-cream-50 leading-tight max-w-3xl">How do you give someone the most memorable gift of their life?</h2>
+        <p class="mt-5 max-w-xl text-base md:text-lg text-cream-200 leading-relaxed">You don't buy it off a shelf. You turn what you feel about them into a song only they could ever own.</p>
+      </div>
+    </div>
+    <div class="relative z-10 pb-8 md:pb-12 -mt-2 text-center px-4">
+      <a class="cta-primary inline-flex items-center justify-center gap-2 text-sm sm:text-base w-full sm:w-auto" data-goquiz>Begin Your Song</a>
+      <p class="text-xs sm:text-sm mt-2 text-cream-200">Under three minutes, start to finish</p>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 4 — STORY (Fifty Winters + vinyl) ===================== -->
+  <section class="overflow-hidden bg-cream-50 px-6 py-16 md:px-10 md:py-20 lg:px-20">
+    <div class="mx-auto max-w-7xl">
+      <div class="mx-auto mb-12 max-w-3xl text-center">
+        <p class="mb-4 font-mono text-[11px] uppercase tracking-[0.18em] text-coral-500">A real story</p>
+        <h2 class="font-serif text-4xl leading-tight text-chapel-900 md:text-5xl">50 years. 5 kids. 11 grandkids. <em class="text-coral-500">One quiet love.</em></h2>
+        <p class="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-chapel-600">The kind of love song that takes a lifetime to write — and five minutes to start.</p>
+      </div>
+      <div class="grid gap-12 md:grid-cols-[minmax(280px,0.85fr)_1.15fr] md:items-start lg:gap-14">
+        <div class="mx-auto w-full max-w-sm">
+          <div class="relative rotate-[-2deg] rounded-2xl border-2 border-chapel-900 bg-white p-3 shadow-[8px_8px_0_#2b221c]">
+            <div class="absolute -top-3 left-8 h-6 w-24 -rotate-[8deg] border border-amber-200 bg-amber-100/70"></div>
+            <div class="absolute -top-3 right-8 h-6 w-24 rotate-[7deg] border border-amber-200 bg-amber-100/70"></div>
+            <div class="mln-song flex flex-col items-center w-full" style="cursor:pointer">
+              <div class="relative overflow-hidden rounded-lg w-full aspect-square" style="box-shadow:0 8px 20px rgba(0,0,0,.2)">
+                <img class="mln-cover object-cover" src="https://cdn.shopify.com/s/files/1/0862/1391/9047/files/partner-1536x1024_1.webp?v=1784169144" alt="Fifty Winters" style="position:absolute;inset:0;width:100%;height:100%;transition:opacity .3s">
+                <div class="mln-song-fig"><div class="mln-disc" style="position:relative;width:88%;aspect-ratio:1/1;border-radius:50%;background:#000;box-shadow:0 10px 24px rgba(0,0,0,.4)">
+                  <div style="position:absolute;inset:8%;border-radius:50%;background:#09090b;border:4px solid #27272a"></div>
+                  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34%;aspect-ratio:1/1;border-radius:50%;overflow:hidden;border:2px solid #3f3f46"><img src="https://cdn.shopify.com/s/files/1/0862/1391/9047/files/partner-1536x1024_1.webp?v=1784169144" style="width:100%;height:100%;object-fit:cover"></div>
+                  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:#a1a1aa"></div>
+                </div></div>
+                <button class="mln-play" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10;width:52px;height:52px;border-radius:50%;border:none;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.3)"><svg class="w-6 h-6" style="color:#191510;margin-left:2px"><use href="#ic-play"/></svg></button>
+              </div>
+              <div class="text-center w-full mt-2"><p class="font-medium text-foreground truncate text-base" style="color:#191510">Fifty Winters</p><p class="text-xs text-muted-foreground" style="color:#7d6b4f">For Rita, from her husband</p></div>
+              <div class="mln-prog-wrap w-full px-1"><div style="position:relative;height:6px;background:#e4e4e7;border-radius:999px;margin-top:6px"><div class="mln-fill" style="position:absolute;height:100%;width:0;border-radius:999px;background:#F15E1E"></div></div><div class="flex justify-between items-center mt-1" style="font-size:11px;color:#7d6b4f"><span class="mln-cur">0:00</span><span class="mln-dur">0:00</span></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="pt-2">
+          <p class="mb-5 inline-flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.18em] text-coral-500">Rita &amp; her husband · 50 years</p>
+          <h3 class="mb-5 font-serif text-3xl leading-tight text-chapel-900 md:text-4xl">He still remembers the first time he saw her.</h3>
+          <div class="space-y-3 text-[15px] leading-relaxed text-chapel-600">
+            <p class="first-letter:float-left first-letter:mr-2 first-letter:font-serif first-letter:text-5xl first-letter:leading-[0.8] first-letter:text-coral-500">Long hair down the middle of her back, walking across a courtyard on an ordinary afternoon — and half a century later, he still tells it like it was yesterday.</p>
+            <p>They married young, raised five kids, and never had much. What they had was each other, and a thousand small moments no one else would ever know about.</p>
+            <p>Their family took those moments — the inside jokes, the hard years, the way he still reaches for her hand — and turned them into a song. When she heard her own life sung back to her, she cried before the first chorus.</p>
+          </div>
+          <blockquote class="my-6 border-l-2 border-coral-500 pl-4 font-serif text-xl italic leading-snug text-chapel-900"><em>"I love you more."</em></blockquote>
+          <div class="grid grid-cols-2 gap-4 border-t border-dashed border-cream-300 pt-5 sm:grid-cols-3">
+            <div><div class="font-serif text-4xl italic leading-none text-coral-500">50</div><div class="mt-2 font-mono text-[11px] uppercase tracking-[0.1em] text-chapel-500">Years together</div></div>
+            <div><div class="font-serif text-4xl italic leading-none text-coral-500">5</div><div class="mt-2 font-mono text-[11px] uppercase tracking-[0.1em] text-chapel-500">Kids</div></div>
+            <div><div class="font-serif text-4xl italic leading-none text-coral-500">1</div><div class="mt-2 font-mono text-[11px] uppercase tracking-[0.1em] text-chapel-500">Song, forever</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 5 — REACTIONS GRID (coral) ===================== -->
+  <section class="section-marketing bg-coral-500 overflow-hidden">
+    <div class="max-w-[1312px] mx-auto px-4">
+      <div class="text-center mb-6 md:mb-10">
+        <h2 class="text-3xl md:text-4xl font-serif font-semibold text-white mb-3 md:mb-4">Watch real reactions. Feel the emotion.</h2>
+        <p class="text-base md:text-lg text-white/95 max-w-2xl mx-auto leading-relaxed">These are <span class="font-bold">real people</span> hearing their song for the first time. <span class="italic">Imagine creating this moment for someone you love.</span></p>
+      </div>
+      <div class="flex gap-3 md:gap-4 overflow-x-auto scrollbar-hide pb-2 px-1" id="mlnReact2"></div>
+      <div class="text-center mt-6 md:mt-10">
+        <p class="text-white text-base md:text-lg mb-4 max-w-xl mx-auto leading-relaxed"><span class="font-bold">Your loved one deserves this moment.</span></p>
+        <a class="inline-flex items-center gap-2 bg-white text-coral-600 px-6 py-3 md:px-8 md:py-4 rounded-full font-semibold shadow-lg" data-goquiz style="cursor:pointer">Create Their Unforgettable Moment</a>
+        <p class="text-white/80 text-xs md:text-sm mt-3">Tears of happiness guaranteed, or your money back</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 6 — COMPARISON (receipt vs song) ===================== -->
+  <section class="overflow-hidden bg-cream-50 px-5 py-16 md:px-10 md:py-24 lg:px-20">
+    <div class="mx-auto mb-14 max-w-3xl text-center">
+      <p class="mb-4 font-mono text-[11px] uppercase tracking-[0.18em] text-coral-500">Why a song</p>
+      <h2 class="font-serif text-4xl leading-tight text-chapel-900 md:text-6xl">Flowers fade. <em class="text-coral-500">A song doesn't.</em></h2>
+      <p class="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-chapel-600">A usual gift is a moment. A song about the person you love is a keepsake they'll replay for the rest of their life.</p>
+    </div>
+    <div class="mx-auto grid max-w-6xl gap-7 md:grid-cols-[0.78fr_84px_1.22fr] md:items-stretch">
+      <div class="relative flex rotate-[-1.5deg] flex-col rounded-2xl border-2 border-chapel-900 bg-[#f4efe4] p-6 shadow-[6px_6px_0_#2b221c]">
+        <div class="pointer-events-none absolute inset-2 rounded-xl border border-dashed border-cream-300"></div>
+        <div class="relative text-center">
+          <p class="font-mono text-[10px] uppercase tracking-[0.2em] text-chapel-500">★ The Usual Gift Co.</p>
+          <h3 class="mt-2 font-serif text-2xl leading-tight text-chapel-900">The usual route</h3>
+          <p class="mt-1 font-mono text-[11px] tracking-[0.08em] text-chapel-500">Order #4471 · Thank you!</p>
+        </div>
+        <hr class="relative my-4 border-0 border-t border-dashed border-chapel-900">
+        <ul class="relative space-y-3">
+          <li class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 font-mono text-xs text-chapel-700"><span class="text-chapel-500 line-through decoration-chapel-400">Two dozen roses</span><span class="whitespace-nowrap text-chapel-800">$89.00</span><span class="col-span-2 pl-4 font-serif text-sm italic text-coral-500">wilted in 6 days</span></li>
+          <li class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 font-mono text-xs text-chapel-700"><span class="text-chapel-500 line-through decoration-chapel-400">Box of chocolates</span><span class="whitespace-nowrap text-chapel-800">$24.00</span><span class="col-span-2 pl-4 font-serif text-sm italic text-coral-500">gone by Sunday</span></li>
+          <li class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 font-mono text-xs text-chapel-700"><span class="text-chapel-500 line-through decoration-chapel-400">Another gift card</span><span class="whitespace-nowrap text-chapel-800">$100.00</span><span class="col-span-2 pl-4 font-serif text-sm italic text-coral-500">lost in a drawer</span></li>
+        </ul>
+        <div class="relative mt-5 grid grid-cols-[1fr_auto] items-baseline gap-3 border-t border-dashed border-chapel-900 pt-4"><span class="font-mono text-[11px] uppercase tracking-[0.14em] text-chapel-500">Subtotal</span><span class="font-mono text-sm text-chapel-900">$213.00</span></div>
+        <div class="relative mt-2 grid grid-cols-[1fr_auto] items-baseline gap-3"><span class="font-mono text-[11px] uppercase tracking-[0.14em] text-chapel-500">Lifespan</span><span class="font-serif text-2xl italic text-chapel-900">~ one week</span></div>
+        <p class="relative mt-5 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-chapel-500">— Thank you, come again —</p>
+      </div>
+      <div class="flex items-center justify-center gap-4 md:flex-col"><div class="grid size-16 -rotate-6 place-items-center rounded-full border-2 border-chapel-900 bg-cream-50 font-serif text-xl italic text-chapel-900">vs.</div></div>
+      <div class="relative rotate-[0.8deg] overflow-hidden rounded-2xl border-2 border-chapel-900 bg-white shadow-[6px_6px_0_#F15E1E]">
+        <div class="absolute -right-11 top-5 z-10 rotate-[35deg] bg-coral-500 px-12 py-1.5 font-mono text-[10px] text-white">The winner</div>
+        <div class="border-b-2 border-chapel-900 bg-gradient-to-br from-chapel-800 to-chapel-950 p-5 text-cream-50">
+          <div class="grid grid-cols-[56px_1fr_44px] items-center gap-4">
+            <div class="grid size-14 place-items-center rounded-lg bg-coral-500 font-serif text-3xl italic text-cream-50">♫</div>
+            <div class="min-w-0"><p class="truncate font-serif text-xl italic">For Rita — their song</p><p class="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-cream-50/60">3:24 · Yours forever</p></div>
+            <button class="grid size-11 place-items-center rounded-full bg-cream-50 text-chapel-900 shadow-lg" data-goquiz style="cursor:pointer"><svg class="w-5 h-5" style="margin-left:2px"><use href="#ic-play"/></svg></button>
+          </div>
+          <div class="mt-4 flex h-6 items-end gap-0.5" id="mlnWave"></div>
+        </div>
+        <div class="p-6 md:p-8">
+          <p class="font-mono text-[10px] uppercase tracking-[0.2em] text-coral-500">♫ Where it plays</p>
+          <h3 class="mt-2 font-serif text-3xl leading-tight text-chapel-900">Every moment, <em class="text-coral-500">just for them</em></h3>
+          <p class="mt-1 font-mono text-[11px] tracking-[0.08em] text-chapel-500">Every moment that matters — for the rest of their life</p>
+          <ol class="mt-6 grid gap-x-6 gap-y-3 md:grid-cols-2">
+            <li class="grid grid-cols-[auto_1fr] gap-x-3 border-t border-cream-300 pt-3"><span class="font-serif text-base leading-snug text-chapel-900">The <em class="text-coral-500">first listen</em></span><span class="col-start-2 font-mono text-[9px] uppercase tracking-[0.14em] text-chapel-500">Day one</span></li>
+            <li class="grid grid-cols-[auto_1fr] gap-x-3 border-t border-cream-300 pt-3"><span class="font-serif text-base leading-snug text-chapel-900">Every anniversary</span><span class="col-start-2 font-mono text-[9px] uppercase tracking-[0.14em] text-chapel-500">Year after year</span></li>
+            <li class="grid grid-cols-[auto_1fr] gap-x-3 border-t border-cream-300 pt-3"><span class="font-serif text-base leading-snug text-chapel-900">The hard days</span><span class="col-start-2 font-mono text-[9px] uppercase tracking-[0.14em] text-chapel-500">When they need it</span></li>
+            <li class="grid grid-cols-[auto_1fr] gap-x-3 border-t border-cream-300 pt-3"><span class="font-serif text-base leading-snug text-chapel-900">The quiet nights</span><span class="col-start-2 font-mono text-[9px] uppercase tracking-[0.14em] text-chapel-500">On repeat</span></li>
+          </ol>
+          <div class="mt-6 grid gap-3 border-t-2 border-chapel-900 pt-5 sm:grid-cols-[auto_1fr_auto] sm:items-center"><span class="font-mono text-[11px] uppercase tracking-[0.14em] text-chapel-500">Lifespan</span><span class="w-fit rounded-full border border-coral-200 bg-coral-100 px-3 py-1 font-mono text-[9px] uppercase text-coral-600">∞ replays · 0 wilting</span><span class="font-serif text-3xl italic leading-none text-coral-500">a lifetime</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="mt-14 text-center">
+      <p class="mb-5 font-serif text-2xl italic text-chapel-900">All it takes is <em class="text-coral-500">five minutes</em></p>
+      <a class="cta-primary inline-flex" data-goquiz>Start your song</a>
+      <p class="mt-4 font-mono text-[11px] tracking-[0.04em] text-chapel-500">100% satisfaction guarantee · Delivered in days</p>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 7 — PAINS ===================== -->
+  <section class="section-marketing bg-white">
+    <div class="container-wide">
+      <div class="text-center max-w-3xl mx-auto mb-4 md:mb-12">
+        <h2 class="text-3xl md:text-4xl font-serif font-semibold text-chapel-900 mb-2 md:mb-4">The gift dilemma we all know</h2>
+        <p class="text-base md:text-lg text-chapel-600"><span class="italic">"Nothing feels good enough for them."</span></p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6" id="mlnPains"></div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 8 — OFFER TEASER ===================== -->
+  <section class="section-marketing bg-gradient-to-b from-cream-50 to-cream-100">
+    <div class="container-wide">
+      <div class="max-w-4xl mx-auto">
+        <div class="text-center mb-8 md:mb-12">
+          <div class="inline-flex items-center gap-2 text-coral-500 mb-3 md:mb-4"><svg class="w-4 h-4"><use href="#ic-sparkles"/></svg><span class="font-semibold uppercase tracking-wider text-sm">What if you could</span></div>
+          <h2 class="text-2xl md:text-4xl lg:text-5xl font-serif font-semibold text-chapel-900 leading-snug mb-4">Turn a lifetime of memories into a <span class="text-coral-500 font-bold">professionally produced song</span></h2>
+          <p class="text-lg md:text-xl text-chapel-700 max-w-2xl mx-auto leading-relaxed"><span class="font-semibold">In just 5 minutes</span> to start. <span class="font-semibold">In days</span> to hold.</p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 md:p-10 shadow-lg border border-cream-200">
+          <div class="flex items-center gap-1 mb-3 md:mb-4 text-gold-400" style="color:#F2B01E" data-stars="5"></div>
+          <blockquote class="text-lg md:text-2xl font-serif font-medium text-chapel-800 leading-relaxed mb-4 md:mb-6">"I played it at our anniversary dinner. By the second verse, the whole table was crying — and so was she."</blockquote>
+          <div class="flex items-center gap-3 md:gap-4">
+            <div class="w-11 h-11 md:w-12 md:h-12 rounded-full flex items-center justify-center text-white font-semibold" style="background:linear-gradient(135deg,#E9764B,#C6402A)">M</div>
+            <div><p class="font-semibold text-chapel-900">Michael R.</p><p class="text-sm text-chapel-500">Anniversary Gift • Verified Purchase</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 9 — OCCASIONS ===================== -->
+  <section class="section-marketing bg-cream-50">
+    <div class="container-wide">
+      <div class="text-center max-w-2xl mx-auto mb-4 md:mb-12">
+        <h2 class="text-3xl md:text-4xl font-serif font-semibold text-chapel-900 mb-2 md:mb-4">A song for every moment that matters</h2>
+        <p class="text-base md:text-lg text-chapel-600">Whatever the occasion, we'll help you turn it into a song they'll never forget.</p>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-12" id="mlnOcc"></div>
+      <div class="text-center">
+        <p class="text-chapel-600 text-sm md:text-base mb-3 md:mb-4"><span class="font-medium text-chapel-800">Every story is welcome.</span></p>
+        <a class="cta-primary inline-flex items-center gap-2 text-sm md:text-base" data-goquiz>Create Yours</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 10 — REVIEWS ===================== -->
+  <section class="section-marketing bg-white">
+    <div class="container-wide">
+      <div class="text-center max-w-2xl mx-auto mb-4 md:mb-12">
+        <div class="inline-flex items-center gap-1 mb-4" style="color:#F2B01E" data-stars="5"></div>
+        <h2 class="text-2xl md:text-4xl font-serif text-chapel-900 mb-2 md:mb-4">Thousands of stories turned into songs</h2>
+        <p class="text-base md:text-lg text-chapel-600">See what our customers are saying</p>
+      </div>
+      <div class="mb-8">
+        <div class="bg-gradient-to-br from-chapel-800 to-chapel-900 rounded-2xl p-8 md:p-12 text-cream-50">
+          <div class="flex items-center gap-1 mb-6" style="color:#F2B01E" data-stars="5"></div>
+          <blockquote class="text-xl md:text-2xl font-serif leading-relaxed mb-8">"Ordered a song for my wife's birthday. The lyrics captured moments I forgot I'd ever mentioned. She cried, I cried — the best gift I've ever given."</blockquote>
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-full flex items-center justify-center" style="background:#4b4030"><span class="font-serif text-lg text-cream-100">DM</span></div>
+            <div><p class="font-medium text-cream-100">Dave M. <span class="text-chapel-400 font-normal">• US</span></p><p class="text-sm text-chapel-400">Birthday • Verified Purchase</p></div>
+          </div>
+        </div>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6" id="mlnTestis"></div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 11 — FACEBOOK COMMENTS ===================== -->
+  <section class="py-16 md:py-24 bg-gradient-to-b from-stone-50 to-white">
+    <div class="max-w-2xl mx-auto px-4">
+      <p class="text-center text-sm text-gray-400 mb-4 tracking-wide uppercase">What people are saying online</p>
+      <div class="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div class="px-4 pt-4 pb-3">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white"><svg class="w-5 h-5"><use href="#ic-music"/></svg></div>
+            <div class="flex-1"><span class="font-bold text-sm text-gray-900">MeloniaSong</span><p class="text-xs text-gray-400">Sponsored · 2h</p></div>
+          </div>
+          <p class="mt-3 text-sm text-gray-800 leading-relaxed">We turn your memories into a custom, professionally produced song. Tell us your story — we'll write, produce, and deliver it. 🎵</p>
+        </div>
+        <div class="px-4 py-2 border-t border-b border-gray-100">
+          <div class="flex items-center justify-between text-xs text-gray-500">
+            <div class="flex items-center gap-1"><span class="inline-flex -space-x-1"><span class="w-5 h-5 rounded-full bg-blue-500"></span><span class="w-5 h-5 rounded-full bg-red-500"></span></span><span class="ml-1">12.4K</span></div>
+            <div class="flex items-center gap-3"><span>1.2K comments</span><span>860 shares</span></div>
+          </div>
+        </div>
+        <div class="px-4 pt-2 pb-1"><p class="text-xs font-semibold text-gray-500 mb-1">Most relevant</p></div>
+        <div class="h-[320px] md:h-[400px] overflow-y-auto scrollbar-hide" id="mlnFB"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 12 — CATALOG ===================== -->
+  <section class="section-marketing bg-cream-100">
+    <div class="container-wide">
+      <div class="text-center max-w-2xl mx-auto mb-4 md:mb-8">
+        <p class="text-sm uppercase tracking-wider text-coral-500 font-medium mb-2 md:mb-3">Hear for yourself</p>
+        <h2 class="text-2xl md:text-4xl font-serif text-chapel-900 mb-2 md:mb-4">Listen to some of our favorites</h2>
+        <p class="text-base md:text-lg text-chapel-600">Every song tells a unique story. Which one speaks to you?</p>
+      </div>
+      <div class="flex justify-center mb-4 md:mb-10">
+        <div class="inline-flex flex-wrap justify-center gap-1.5 p-1.5 bg-white rounded-2xl shadow-sm" id="mlnFilters"></div>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 lg:gap-6" id="mlnCatalog"></div>
+      <p class="text-center text-xs md:text-sm text-chapel-500 mt-6 md:mt-8 italic">All songs shared with permission from their families</p>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 13 — EVERYTHING YOU GET ===================== -->
+  <section class="section-marketing bg-cream-50">
+    <div class="container-wide">
+      <div class="text-center max-w-2xl mx-auto mb-6 md:mb-12">
+        <h2 class="text-2xl md:text-4xl font-serif text-chapel-900 mb-2 md:mb-4">Everything you get</h2>
+        <p class="text-base md:text-lg text-chapel-600">One price. No subscriptions. No hidden fees.</p>
+      </div>
+      <div class="grid lg:grid-cols-2 gap-4 md:gap-8 lg:gap-12 lg:items-stretch">
+        <div class="grid grid-cols-2 grid-rows-2 gap-2 md:gap-4 h-full" id="mlnFeatures"></div>
+        <div class="bg-white rounded-2xl p-5 md:p-8 border-2 border-coral-200 shadow-lg">
+          <div class="text-center mb-4 md:mb-6"><p class="text-chapel-500 text-sm md:text-base mb-1 md:mb-2">Complete Package</p><p class="text-xs md:text-sm text-chapel-500 mt-1 md:mt-2">No monthly fees. No subscriptions.</p></div>
+          <div class="border-t border-cream-200 pt-4 md:pt-6 mb-4 md:mb-6">
+            <p class="font-medium text-chapel-800 mb-3 md:mb-4 text-sm md:text-base">Your song includes:</p>
+            <ul class="space-y-2 md:space-y-3" id="mlnIncludes"></ul>
+          </div>
+          <a class="cta-primary w-full flex items-center justify-center text-sm md:text-base" data-goquiz>Get Started Now</a>
+          <p class="text-center text-xs md:text-sm text-chapel-500 mt-3 md:mt-4">100% satisfaction guarantee — love it or we'll revise it</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 14 — FAQ ===================== -->
+  <section class="section-marketing bg-white">
+    <div class="container-wide">
+      <div class="text-center max-w-2xl mx-auto mb-12">
+        <h2 class="text-3xl md:text-4xl font-serif text-chapel-900 mb-4">Questions? We've got answers</h2>
+        <p class="text-lg text-chapel-600">Everything you need to know before creating your song</p>
+      </div>
+      <div class="max-w-3xl mx-auto" id="mlnFAQ"></div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 15 — CTA (dark) ===================== -->
+  <section class="section-marketing bg-gradient-to-b from-chapel-800 to-chapel-900">
+    <div class="container-wide">
+      <div class="text-center max-w-3xl mx-auto">
+        <h2 class="text-3xl md:text-4xl font-serif text-cream-50 mb-4">Ready to create something unforgettable?</h2>
+        <p class="text-lg text-chapel-300 mb-8 max-w-2xl mx-auto">Every day you wait is another day without the perfect gift. It takes about five minutes to start.</p>
+        <a class="cta-primary inline-flex items-center gap-2 text-lg px-10 py-5" data-goquiz>Start Now</a>
+        <p class="text-chapel-400 text-sm mt-4">5-minute survey • 100% satisfaction guaranteed</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 16 — REACTIONS GRID (bis) ===================== -->
+  <section class="section-marketing bg-cream-100">
+    <div class="container-wide">
+      <div class="text-center mb-6 md:mb-8">
+        <h2 class="text-2xl md:text-3xl font-serif text-chapel-900 mb-2">Real songs. Real emotions.</h2>
+        <p class="text-chapel-600 text-sm md:text-base">Every song tells a story that matters</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="mlnReact3"></div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 17 — CTA FINAL ===================== -->
+  <section class="section-marketing bg-cream-50">
+    <div class="container-wide">
+      <div class="text-center max-w-3xl mx-auto">
+        <h2 class="text-3xl md:text-4xl font-serif text-chapel-900 mb-4">Give a gift they'll never forget</h2>
+        <p class="text-lg text-chapel-600 mb-8 max-w-2xl mx-auto">In just five minutes, you can start creating a personalized song that turns your story into something they'll treasure forever.</p>
+        <a class="cta-primary inline-flex items-center gap-2 text-lg px-10 py-5 mb-8" data-goquiz>Start Your Song</a>
+        <div class="flex flex-wrap items-center justify-center gap-6 text-sm text-chapel-600">
+          <div class="flex items-center gap-2"><svg class="w-4 h-4"><use href="#ic-shield"/></svg><span>100% Satisfaction Guarantee</span></div>
+          <div class="flex items-center gap-2"><svg class="w-4 h-4"><use href="#ic-music"/></svg><span>Professionally Produced</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="bg-chapel-900 text-cream-200 py-10 text-center text-sm">
+    <div class="container-wide">
+      <div class="flex items-center justify-center gap-2 mb-3"><svg class="w-5 h-5 text-coral-500"><use href="#ic-music"/></svg><span class="font-serif text-lg text-cream-50">MeloniaSong</span></div>
+      <p class="text-chapel-400">Handcrafted songs for life's biggest moments.</p>
+      <p class="mt-4 text-chapel-500 text-xs">© MeloniaSong · Terms of Service · Privacy Policy · Media Release</p>
+    </div>
+  </footer>
+
+</main>
+
+<script>
+(function(){
+  var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s));};
+  $$('[data-stars]').forEach(function(el){ var n=+el.getAttribute('data-stars'),h=''; for(var i=0;i<n;i++)h+='<svg class="w-4 h-4"><use href="#ic-star"/></svg>'; el.innerHTML=h; });
+  $$('[data-goquiz]').forEach(function(a){ a.style.cursor='pointer'; a.addEventListener('click',function(e){ e.preventDefault(); try{ parent.postMessage({type:'mln-goquiz'},'*'); }catch(_){} }); });
+  // videos: tap to play with sound
+  $$('[data-vplay]').forEach(function(btn){
+    var wrap=btn.closest('.mln-vid-wrap'), v=wrap&&wrap.querySelector('video');
+    function toggle(){ if(!v)return; if(!v.getAttribute('src'))v.src=v.getAttribute('data-src'); if(v.paused){ v.muted=false; v.play(); } else { v.pause(); } }
+    btn.addEventListener('click',function(e){ e.stopPropagation(); toggle(); });
+    if(wrap) wrap.addEventListener('click',toggle);
+  });
+
+  // SECTION 2 — how it works (4 steps)
+  var STEPS=[
+    {n:'1',t:'5 min',h:'Answer a few easy questions',p:'Tell us about the person and the moment. No writing, no overthinking — we guide every step.',f:'Takes about 5 minutes'},
+    {n:'2',t:'1 day',h:'We write the lyrics',p:'Our team turns your answers into original, deeply personal lyrics — every line about them.',f:'Written from your story'},
+    {n:'3',t:'A few days',h:'We produce your song',p:'Real producers craft a studio-quality track in the genre and voice you picked.',f:'Professionally produced'},
+    {n:'4',t:'Delivery',h:'You give the gift',p:'Get your finished song with cover art, ready to share the moment they will never forget.',f:'Cover art included'}
+  ];
+  var stepsWrap=document.getElementById('mlnSteps');
+  if(stepsWrap) STEPS.forEach(function(s){
+    var d=document.createElement('div');
+    d.className='flex min-h-[280px] flex-col gap-3 rounded-2xl border-2 border-chapel-900 bg-white p-6 shadow-[4px_4px_0_#2b221c]';
+    d.innerHTML='<div class="flex items-center justify-between gap-4">'+
+      '<div class="grid size-11 place-items-center rounded-full bg-coral-500 font-serif text-2xl font-bold italic text-cream-50">'+s.n+'</div>'+
+      '<p class="font-mono text-[11px] uppercase tracking-[0.14em] text-chapel-500">'+s.t+'</p></div>'+
+      '<h3 class="mt-2 w-fit font-serif text-xl text-chapel-900" style="background:linear-gradient(90deg,#F15E1E 50%,transparent 50%);background-size:6px 1.5px;background-repeat:repeat-x;background-position:0 100%;padding-bottom:3px">'+s.h+'</h3>'+
+      '<p class="text-sm leading-relaxed text-chapel-600 md:text-[15px]">'+s.p+'</p>'+
+      '<div class="mt-auto border-t border-dashed border-cream-300 pt-4 font-mono text-[11px] tracking-[0.04em] text-chapel-500 uppercase">'+s.f+'</div>';
+    stepsWrap.appendChild(d);
+  });
+
+  // SECTION 1 — reaction cards (dark)
+  var REACT=[
+    {t:'A Song for Elizabeth',s:'For Mom'},{t:'The One Who Makes Me Laugh',s:'For Dad'},
+    {t:'Fifty Winters',s:'For Rita'},{t:'Where Love Never Fades',s:'For John'},
+    {t:'Underneath the Same Stars',s:'For Sarah'}
+  ];
+  var reactWrap=document.getElementById('mlnReact1');
+  var VID='https://cdn.shopify.com/videos/c/o/v/85f1e87ddd084df08d04fea82b1cb3c3.mov';
+  if(reactWrap) REACT.forEach(function(r){
+    var d=document.createElement('div');
+    d.className='mln-vid-wrap flex-shrink-0 w-[150px] sm:w-[170px] md:w-[190px] aspect-[9/16] rounded-2xl overflow-hidden relative border border-white/10';
+    d.style.background='#000'; d.style.cursor='pointer';
+    d.innerHTML='<video class="absolute inset-0 w-full h-full object-cover" playsinline muted loop preload="none" poster="poster.jpg" data-src="'+VID+'"></video>'+
+      '<div class="absolute inset-0" style="background:linear-gradient(to top,rgba(0,0,0,.82),rgba(0,0,0,.05) 55%,transparent)"></div>'+
+      '<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg"><svg class="w-5 h-5" style="color:#191510;margin-left:2px"><use href="#ic-play"/></svg></div>'+
+      '<div class="absolute inset-x-3 bottom-3 text-left"><p class="truncate text-sm font-semibold text-white">'+r.t+'</p><p class="mt-0.5 truncate text-xs text-white/70">'+r.s+'</p></div>';
+    var v=d.querySelector('video');
+    d.addEventListener('click',function(){ if(!v.getAttribute('src'))v.src=v.getAttribute('data-src'); if(v.paused){ v.muted=false; v.play(); } else { v.pause(); } });
+    reactWrap.appendChild(d);
+  });
+
+  // SECTION 4 — vinyl audio
+  var vinyl=document.querySelector('.mln-song');
+  if(vinyl){
+    var au=new Audio(); au.preload='none'; au.src='https://cdn.shopify.com/s/files/1/0862/1391/9047/files/preview_MLN-MXB3WJ.mp3?v=1785775075';
+    var disc=vinyl.querySelector('.mln-disc'), fill=vinyl.querySelector('.mln-fill'), curT=vinyl.querySelector('.mln-cur'), durT=vinyl.querySelector('.mln-dur');
+    function vf(x){ x=Math.floor(x||0); return Math.floor(x/60)+':'+('0'+(x%60)).slice(-2); }
+    vinyl.querySelector('.relative').addEventListener('click',function(){ if(au.paused)au.play(); else au.pause(); });
+    au.addEventListener('play',function(){ vinyl.classList.add('playing'); if(disc)disc.classList.add('spin'); });
+    au.addEventListener('pause',function(){ vinyl.classList.remove('playing'); if(disc)disc.classList.remove('spin'); });
+    au.addEventListener('loadedmetadata',function(){ if(durT)durT.textContent=vf(au.duration); });
+    au.addEventListener('timeupdate',function(){ if(au.duration){ if(fill)fill.style.width=(au.currentTime/au.duration*100)+'%'; if(curT)curT.textContent=vf(au.currentTime); } });
+  }
+
+  // SECTION 5 — reaction cards (coral)
+  var react2=document.getElementById('mlnReact2');
+  if(react2){ ['For Dad','For Mom','For Rita','For John','For Sarah','For Emma','For Grace','For Sam'].forEach(function(){
+    var d=document.createElement('div'); d.className='flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px] aspect-[9/16] rounded-xl overflow-hidden relative'; d.style.background='#191510'; d.style.cursor='pointer';
+    d.innerHTML='<video class="w-full h-full object-cover" playsinline muted loop preload="none" poster="poster.jpg" data-src="'+VID+'"></video><div class="absolute inset-0 flex items-center justify-center" style="background:rgba(0,0,0,.2)"><div class="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/90 flex items-center justify-center shadow-lg"><svg class="w-5 h-5" style="color:#191510;margin-left:2px"><use href="#ic-play"/></svg></div></div>';
+    var v=d.querySelector('video'); d.addEventListener('click',function(){ if(!v.getAttribute('src'))v.src=v.getAttribute('data-src'); if(v.paused){ v.muted=false; v.play(); } else { v.pause(); } });
+    react2.appendChild(d);
+  }); }
+
+  // SECTION 6 — waveform bars (56)
+  var wave=document.getElementById('mlnWave');
+  if(wave){ var HS=[30,55,40,75,50,90,60,45,80,35,70,50,95,40,65,55,85,45,60,75,35,90,50,70,40,80,60,45,55,85,35,65,75,50,90,40,60,70,45,80,55,35,85,50,65,75,40,90,55,45,70,60,80,35,50,65];
+    HS.forEach(function(h,i){ var s=document.createElement('span'); s.className='flex-1 rounded-sm'; s.style.height=h+'%'; s.style.background=i<18?'#F15E1E':'rgba(255,255,255,.35)'; wave.appendChild(s); }); }
+
+  // SECTION 7 — pains
+  var PAINS=[
+    {ic:'ic-gift',h:'Generic gifts collect dust',p:"Another candle. Another gift card. The kind of thing that quietly says “I grabbed something.”"},
+    {ic:'ic-heart',h:'Store-bought feels impersonal',p:"It's nice — but it says nothing about your story, your memories, or what they mean to you."},
+    {ic:'ic-sparkles',h:"You want something they'll keep",p:"A gift that still means something years from now — not one forgotten by next week."},
+    {ic:'ic-music',h:"But you're not a songwriter",p:"You don't have to be. Tell us your story in a few minutes and we turn it into a real song."}
+  ];
+  var painsWrap=document.getElementById('mlnPains');
+  if(painsWrap) PAINS.forEach(function(c){
+    var d=document.createElement('div'); d.className='bg-cream-50 rounded-xl p-4 md:p-6 border border-cream-200 hover:shadow-md transition-shadow';
+    d.innerHTML='<div class="flex items-center gap-2.5 mb-2 md:block md:mb-0"><div class="bg-chapel-100 rounded-full w-9 h-9 md:w-12 md:h-12 flex items-center justify-center flex-shrink-0 md:mb-3 text-chapel-700"><svg class="w-5 h-5"><use href="#'+c.ic+'"/></svg></div><h3 class="font-serif text-xl font-bold text-chapel-900 md:mb-2 leading-tight">'+c.h+'</h3></div><p class="text-chapel-600 text-sm leading-relaxed">'+c.p+'</p>';
+    painsWrap.appendChild(d);
+  });
+
+  // SECTION 9 — occasions
+  var OCC=[
+    {ic:'ic-users',h:'For Parents',p:'Honor Mom, Dad or grandparents',s:"Mother's Day, Father's Day, retirement"},
+    {ic:'ic-heart',h:'For Your Partner',p:'Celebrate your love story',s:"Anniversary, Valentine's, wedding"},
+    {ic:'ic-gift',h:'For Kids',p:"A keepsake they'll grow up with",s:'Birthdays, graduations, milestones'},
+    {ic:'ic-sparkles',h:'Weddings',p:'Your first dance, made yours',s:'Ceremony, reception, vows'},
+    {ic:'ic-music',h:'In Memory',p:"Honor someone you've lost",s:'Memorials & tributes'},
+    {ic:'ic-shield',h:'Faith & Worship',p:'Songs of gratitude and prayer',s:'Baptism, dedication, worship'},
+    {ic:'ic-sparkles',h:'Milestones',p:'Mark the moments that matter',s:'New home, new baby, big wins'},
+    {ic:'ic-heart',h:'Just Because',p:'No reason needed',s:'Any day you want to say it'}
+  ];
+  var occWrap=document.getElementById('mlnOcc');
+  if(occWrap) OCC.forEach(function(o){
+    var b=document.createElement('button'); b.className='group bg-white rounded-xl p-4 md:p-5 border border-cream-200 hover:shadow-lg hover:border-coral-200 transition-all text-left'; b.setAttribute('data-goquiz','');
+    b.innerHTML='<div class="bg-cream-100 group-hover:bg-coral-50 rounded-full w-11 h-11 md:w-14 md:h-14 flex items-center justify-center mb-3 text-coral-500"><svg class="w-5 h-5 md:w-6 md:h-6"><use href="#'+o.ic+'"/></svg></div><h3 class="font-serif text-base font-bold md:text-lg text-chapel-900 mb-1 group-hover:text-coral-600">'+o.h+'</h3><p class="text-chapel-600 text-sm mb-1.5 md:mb-2 line-clamp-2">'+o.p+'</p><p class="text-xs text-chapel-400 italic line-clamp-2">'+o.s+'</p>';
+    b.addEventListener('click',function(e){ e.preventDefault(); try{ parent.postMessage({type:'mln-goquiz'},'*'); }catch(_){} });
+    occWrap.appendChild(b);
+  });
+
+  function stars(el){ var h=''; for(var i=0;i<5;i++)h+='<svg class="w-4 h-4"><use href="#ic-star"/></svg>'; el.innerHTML=h; }
+  $$('[data-stars]').forEach(stars);
+
+  // SECTION 10 — testimonial cards
+  var TESTIS=[
+    {av:'ES',c:'#7c3aed',q:'"Our wedding was small — just 30 people. When this song played for our first dance, every one of them was in tears. It mentioned my dad\'s old pickup truck. I don\'t know how they did it."',t:'✨ mentioned dad\'s old truck',n:'Emma S.',loc:'Nashville, TN',occ:'Wedding'},
+    {av:'JC',c:'#0ea5e9',q:'"Her 50th birthday song made her feel like the most special woman in the world. She\'s played it every single day since."',t:'✨ her 50th birthday',n:'James C.',loc:'Austin, TX',occ:'Birthday'},
+    {av:'NK',c:'#f59e0b',q:'"This song is not just beautiful — it\'s become our marriage anthem. My husband cried and listened to it again and again."',t:'✨ their anniversary',n:'Nilufar K.',loc:'US',occ:'Anniversary'},
+    {av:'PS',c:'#ec4899',q:'"Absolutely beautiful. You captured such special moments about my mom — we both were crying by the end."',t:'✨ for her mother',n:'Pamela S.',loc:'US',occ:'For Parent'}
+  ];
+  var tw=document.getElementById('mlnTestis');
+  if(tw) TESTIS.forEach(function(r){
+    var d=document.createElement('div'); d.className='testimonial-card bg-white rounded-xl p-6 shadow-sm border border-cream-200 hover:shadow-md transition-shadow';
+    d.innerHTML='<div class="flex items-center gap-1 mb-4" style="color:#F2B01E" data-s></div>'+
+      '<blockquote class="text-chapel-700 leading-relaxed mb-6">'+r.q+'</blockquote>'+
+      '<div class="bg-cream-50 rounded-lg px-3 py-2 mb-4 inline-block"><p class="text-xs text-chapel-600 italic">'+r.t+'</p></div>'+
+      '<div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full flex items-center justify-center text-white" style="background:'+r.c+'"><span class="font-serif text-sm">'+r.av+'</span></div><div><p class="font-medium text-chapel-800 text-sm">'+r.n+' <span class="text-chapel-500 font-normal">• '+r.loc+'</span></p><p class="text-xs text-chapel-500">'+r.occ+' • Verified Purchase</p></div></div>';
+    d.querySelectorAll('[data-s]').forEach(stars); tw.appendChild(d);
+  });
+
+  // SECTION 11 — FB comments
+  var FB=[
+    {av:'CP',c:'#e11d48',n:'Cynthia Polk',x:'Watching his face while the song played, I teared up myself. Best money I ever spent on a gift.',l:'25',t:'2w'},
+    {av:'RM',c:'#0ea5e9',n:'Robert Mills',x:'Did one for my parents\' 40th. My mom has listened to it every morning since. Worth every penny.',l:'18',t:'1w'},
+    {av:'AL',c:'#7c3aed',n:'Angela Lee',x:'I was skeptical it would feel personal — it did. They used details only our family would know.',l:'31',t:'3w'},
+    {av:'DT',c:'#f59e0b',n:'David Tran',x:'Got it delivered in a few days, sounded like a real radio song. My wife cried happy tears.',l:'12',t:'5d'},
+    {av:'MS',c:'#16a34a',n:'Maria Santos',x:'Ordered one for my dad\'s retirement. The whole party went quiet, then everyone was hugging.',l:'27',t:'2w'}
+  ];
+  var fbw=document.getElementById('mlnFB');
+  if(fbw) FB.forEach(function(c){
+    var d=document.createElement('div'); d.className='flex gap-3 px-4 py-3';
+    d.innerHTML='<div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0" style="background:'+c.c+'">'+c.av+'</div>'+
+      '<div class="flex-1 min-w-0"><div class="bg-gray-100 rounded-2xl px-3 py-2"><span class="font-semibold text-sm text-gray-900">'+c.n+'</span><p class="text-sm text-gray-800 leading-relaxed mt-0.5">'+c.x+'</p></div>'+
+      '<div class="mt-1 ml-2"><span class="inline-flex items-center gap-1 bg-white border border-gray-200 rounded-full px-2 py-0.5 text-xs">👍 '+c.l+'</span></div>'+
+      '<div class="flex items-center gap-3 mt-1 ml-2"><span class="text-xs font-semibold text-gray-500">Like</span><span class="text-xs font-semibold text-gray-500">Reply</span><span class="text-xs text-gray-400">'+c.t+'</span></div></div>';
+    fbw.appendChild(d);
+  });
+
+  // SECTION 12 — catalog
+  var fw2=document.getElementById('mlnFilters');
+  if(fw2) ['All','Anniversary','Birthday','Wedding','Parents','Memorial','Faith','Just Because'].forEach(function(g,i){
+    var b=document.createElement('button'); b.className='px-4 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer '+(i===0?'bg-chapel-900 text-cream-50':'text-chapel-600 hover:bg-cream-100'); b.textContent=g; fw2.appendChild(b);
+  });
+  var IMGS=['partner-1536x1024_1.webp?v=1784169144','parents__-1365x2048_1.webp?v=1784169175','strengh_-1536x1024_1.webp?v=1784169199','loss__-1367x2048_1.webp?v=1784169166'];
+  var AUS=['preview_MLN-MXB3WJ.mp3?v=1785775075','preview_MLN-FQUNQP.mp3?v=1785774433','preview_MLN-PU5NQA.mp3?v=1785773385','preview_MLN-LSAUSE.mp3?v=1785770870'];
+  var CDN='https://cdn.shopify.com/s/files/1/0862/1391/9047/files/';
+  var CAT=[['Fifty Winters','For Rita, from her husband'],['Sunday Dinner','From a daughter to her mom'],['Quiet Hero','For Dad, from his son'],['Sweetheart','In memory of Grandma'],['Water Tower to Forever','For William'],['The One Who Stayed','For Elizabeth'],['Where Love Never Fades','For John'],['Underneath the Same Stars','For Sarah'],['Every Ordinary Day','For our anniversary'],['Stronger Than You Know','For Mom, before surgery']];
+  var curAudio=null;
+  function buildVinyl(img,au,title,sub,small){
+    var wrap=document.createElement('div'); wrap.className='bg-white rounded-xl shadow-lg overflow-hidden border border-cream-200';
+    wrap.innerHTML='<div class="mln-song flex flex-col items-center w-full p-2" style="cursor:pointer">'+
+      '<div class="relative overflow-hidden rounded-lg w-full aspect-square">'+
+        '<img class="mln-cover object-cover" loading="lazy" src="'+CDN+img+'" alt="" style="position:absolute;inset:0;width:100%;height:100%;transition:opacity .3s">'+
+        '<div class="mln-song-fig"><div class="mln-disc" style="position:relative;width:88%;aspect-ratio:1/1;border-radius:50%;background:#000">'+
+          '<div style="position:absolute;inset:8%;border-radius:50%;background:#09090b;border:4px solid #27272a"></div>'+
+          '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34%;aspect-ratio:1/1;border-radius:50%;overflow:hidden;border:2px solid #3f3f46"><img src="'+CDN+img+'" style="width:100%;height:100%;object-fit:cover"></div>'+
+          '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:7px;height:7px;border-radius:50%;background:#a1a1aa"></div>'+
+        '</div></div>'+
+        '<button class="mln-play" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10;width:42px;height:42px;border-radius:50%;border:none;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.3)"><svg class="w-5 h-5" style="color:#191510;margin-left:2px"><use href="#ic-play"/></svg></button>'+
+      '</div>'+
+      '<div class="text-center w-full mt-2"><p class="font-medium truncate text-xs" style="color:#191510">'+title+'</p><p class="text-xs" style="color:#7d6b4f">'+sub+'</p></div>'+
+      '<div class="mln-prog-wrap w-full px-1"><div style="position:relative;height:4px;background:#e4e4e7;border-radius:999px;margin-top:6px"><div class="mln-fill" style="position:absolute;height:100%;width:0;border-radius:999px;background:#F15E1E"></div></div></div>';
+    var song=wrap.querySelector('.mln-song'), disc=wrap.querySelector('.mln-disc'), fill=wrap.querySelector('.mln-fill');
+    var a=new Audio(); a.preload='none'; a.src=CDN+au;
+    wrap.querySelector('.relative').addEventListener('click',function(){ if(a.paused){ if(curAudio&&curAudio!==a)curAudio.pause(); a.play(); curAudio=a; } else a.pause(); });
+    a.addEventListener('play',function(){ song.classList.add('playing'); disc.classList.add('spin'); });
+    a.addEventListener('pause',function(){ song.classList.remove('playing'); disc.classList.remove('spin'); });
+    a.addEventListener('timeupdate',function(){ if(a.duration)fill.style.width=(a.currentTime/a.duration*100)+'%'; });
+    return wrap;
+  }
+  var catWrap=document.getElementById('mlnCatalog');
+  if(catWrap) CAT.forEach(function(c,i){ catWrap.appendChild(buildVinyl(IMGS[i%IMGS.length],AUS[i%AUS.length],c[0],c[1])); });
+
+  // SECTION 13 — features + includes
+  var FEAT=[
+    {ic:'ic-music',h:'Your Custom Song',p:'A professionally produced 2-3 minute song with original lyrics written from your story.'},
+    {ic:'ic-sparkles',h:'Studio Production',p:'Real instruments and vocals in the genre and voice you choose — radio quality.'},
+    {ic:'ic-gift',h:'Cover Art Included',p:'A beautiful keepsake artwork to go with your song, free.'},
+    {ic:'ic-heart',h:'Yours Forever',p:'Download it, share it, replay it — it\'s yours to keep for life.'}
+  ];
+  var fWrap=document.getElementById('mlnFeatures');
+  if(fWrap) FEAT.forEach(function(f){
+    var d=document.createElement('div'); d.className='bg-white rounded-xl p-3 md:p-6 border border-cream-200 shadow-sm h-full';
+    d.innerHTML='<div class="flex items-center gap-2 mb-1.5 md:block md:mb-0"><div class="bg-coral-50 rounded-full w-8 h-8 md:w-12 md:h-12 flex items-center justify-center flex-shrink-0 md:mb-3 text-coral-500"><svg class="w-5 h-5"><use href="#'+f.ic+'"/></svg></div><h3 class="font-serif text-sm md:text-lg text-chapel-800 md:mb-2 leading-tight">'+f.h+'</h3></div><p class="text-chapel-600 text-xs md:text-sm leading-relaxed">'+f.p+'</p>';
+    fWrap.appendChild(d);
+  });
+  var INC=['100% original lyrics written from your story','Professionally produced, studio-quality track','The genre and voice of your choice','Custom cover art, included free','Delivered in days, ready to share','Free revision if it\'s not perfect'];
+  var iWrap=document.getElementById('mlnIncludes');
+  if(iWrap) INC.forEach(function(t){
+    var li=document.createElement('li'); li.className='flex items-start gap-2 md:gap-3';
+    li.innerHTML='<svg class="w-5 h-5 text-coral-500 shrink-0"><use href="#ic-check"/></svg><span class="text-chapel-600 text-xs md:text-sm">'+t+'</span>';
+    iWrap.appendChild(li);
+  });
+
+  // SECTION 14 — FAQ accordion
+  var FAQ=[
+    {q:"What if I'm not a good writer?",a:"You don't need to be. Our quick questions do the work — answer in a few words and we craft the lyrics from there."},
+    {q:"How long does it take?",a:"Most songs are delivered within a few days. Need it sooner? Instant delivery is available at checkout."},
+    {q:"Can I choose the genre and voice?",a:"Yes. Pick the style, tempo and vocal that fits them — pop, country, worship, R&B and more."},
+    {q:"What if I don't love it?",a:"We'll revise it. And if it's still not right, you're covered by our 100% satisfaction guarantee."},
+    {q:"Is it really original?",a:"Every song is written from scratch based on your story — the lyrics and the music are made just for them."},
+    {q:"How do I share it?",a:"You get a download to keep and share anywhere, plus custom cover art to go with it."}
+  ];
+  var faqWrap=document.getElementById('mlnFAQ');
+  if(faqWrap) FAQ.forEach(function(f,i){
+    var d=document.createElement('div'); d.className='border-b border-cream-200';
+    d.innerHTML='<button class="w-full py-6 flex items-center justify-between text-left hover:text-coral-600 transition-colors"><span class="font-medium text-chapel-800 pr-4">'+f.q+'</span><svg class="w-5 h-5 shrink-0 transition-transform"><use href="#ic-chevron-down"/></svg></button>'+
+      '<div class="pb-6 pr-12" style="display:none"><p class="text-chapel-600 leading-relaxed">'+f.a+'</p></div>';
+    var btn=d.querySelector('button'), panel=d.querySelector('div'), chev=d.querySelector('svg');
+    btn.addEventListener('click',function(){ var open=panel.style.display!=='none'; panel.style.display=open?'none':'block'; chev.style.transform=open?'':'rotate(180deg)'; });
+    if(i===0){ panel.style.display='block'; chev.style.transform='rotate(180deg)'; }
+    faqWrap.appendChild(d);
+  });
+
+  // SECTION 16 — reaction cards (bis)
+  var R3=[
+    {q:'"Our father-daughter dance. There wasn\'t a dry eye in the room."',t:'Wedding'},
+    {q:'"She plays it every morning with her coffee now."',t:'For Mom'},
+    {q:'"My dad kept asking how they knew all those little details."',t:'Birthday'},
+    {q:'"We played it at the memorial. It said everything we couldn\'t."',t:'In Memory'},
+    {q:'"He teared up before the first chorus even hit."',t:'Anniversary'},
+    {q:'"The whole retirement party went silent, then everyone hugged."',t:'Milestone'},
+    {q:'"Better than I ever imagined — it felt like a real radio song."',t:'Just Because'},
+    {q:'"Our small wedding, one big moment none of us will forget."',t:'Wedding'}
+  ];
+  var r3w=document.getElementById('mlnReact3');
+  if(r3w) R3.forEach(function(r,i){
+    var d=document.createElement('div'); d.className='bg-white rounded-xl overflow-hidden shadow-md border border-cream-200';
+    d.innerHTML='<div class="flex items-stretch"><div class="relative w-24 h-24 flex-shrink-0"><img class="w-full h-full object-cover" loading="lazy" src="'+CDN+IMGS[i%IMGS.length]+'" alt=""><div class="absolute inset-0 flex items-center justify-center" style="background:rgba(0,0,0,.12)"><div class="w-8 h-8 rounded-full flex items-center justify-center shadow-md" style="background:#fff"><svg class="w-4 h-4" style="color:#F15E1E;margin-left:1px"><use href="#ic-play"/></svg></div></div></div>'+
+      '<div class="flex-1 p-3 flex flex-col justify-between min-w-0"><p class="text-chapel-700 text-sm leading-snug line-clamp-2">'+r.q+'</p><span class="inline-block self-start mt-2 px-2 py-0.5 bg-coral-50 text-coral-600 text-xs font-medium rounded">'+r.t+'</span></div></div>';
+    r3w.appendChild(d);
+  });
+})();
+</script>
+</body>
+</html>
