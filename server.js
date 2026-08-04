@@ -569,6 +569,78 @@ app.get('/full', async (req, res) => {
   } catch (e) { console.log('FULL ERROR:', e.message); res.json({ ready: false }); }
 });
 
+// Auto-réparation du full manquant. Parfois le full MLN-XXX.mp3 ne s'upload pas à la génération
+// (le preview/meta/lyrics passent, le full non) -> la page your-song ne trouve rien. Comme le meta
+// persiste suno_task_id + suno_audio_id, on re-télécharge la MÊME chanson depuis Suno (record-info)
+// et on ré-uploade le full sous son nom. Idempotent (si déjà présent, ne fait rien) + verrou
+// anti-concurrence. Nécessite SUNO_API_KEY (variable Railway) -- jamais en dur dans le code.
+const _ensuringFull = {};
+app.get('/ensure_full', async (req, res) => {
+  const leadId = req.query.lead_id;
+  if (!leadId) return res.status(400).json({ ok: false, error: 'no lead_id' });
+  const filename = `${leadId}.mp3`;
+  try {
+    // 1) déjà présent -> rien à faire
+    const existingUrl = await findFileUrl(filename);
+    if (existingUrl) return res.json({ ok: true, ready: true, already: true, url: existingUrl });
+
+    // 2) verrou : un seul backfill à la fois par lead (la page peut appeler en boucle)
+    if (_ensuringFull[leadId]) return res.json({ ok: true, ready: false, in_progress: true });
+    _ensuringFull[leadId] = true;
+
+    try {
+      const SUNO = process.env.SUNO_API_KEY;
+      if (!SUNO) return res.status(500).json({ ok: false, error: 'SUNO_API_KEY not set' });
+
+      // 3) lire le meta -> suno_task_id
+      const metaNode = await findFileNode(`${leadId}.meta.json`);
+      if (!metaNode || !metaNode.url) return res.status(404).json({ ok: false, error: 'no meta for lead' });
+      const metaResp = await fetch(metaNode.url);
+      if (!metaResp.ok) return res.status(502).json({ ok: false, error: 'meta fetch failed' });
+      const meta = await metaResp.json();
+      const taskId = meta.suno_task_id;
+      if (!taskId) return res.status(422).json({ ok: false, error: 'no suno_task_id in meta' });
+
+      // 4) record-info Suno -> URL du full (même endpoint/forme que le workflow 3rd Verse)
+      const riResp = await fetch('https://api.sunoapi.org/api/v1/generate/record-info?taskId=' + encodeURIComponent(taskId), {
+        headers: { 'Authorization': 'Bearer ' + SUNO }
+      });
+      const ri = await riResp.json();
+      const d = ri && ri.data;
+      const sd = d && ((d.response && d.response.sunoData) || d.sunoData);
+      if (!Array.isArray(sd) || !sd.length) {
+        console.log('ENSURE_FULL no sunoData:', JSON.stringify(ri).substring(0, 400));
+        return res.status(502).json({ ok: false, error: 'suno record-info empty' });
+      }
+      // matcher le clip original via suno_audio_id si possible, sinon le 1er
+      let clip = sd[0];
+      if (meta.suno_audio_id) {
+        const m = sd.find(c => c && c.id === meta.suno_audio_id);
+        if (m) clip = m;
+      }
+      const audioUrl = clip && (clip.audioUrl || clip.streamAudioUrl || clip.audio_url);
+      if (!audioUrl) return res.status(502).json({ ok: false, error: 'no audioUrl from suno' });
+
+      // 5) télécharger le full puis uploader sous MLN-XXX.mp3
+      const audioResp = await fetch(audioUrl);
+      if (!audioResp.ok) return res.status(502).json({ ok: false, error: 'download failed ' + audioResp.status });
+      const buf = Buffer.from(await audioResp.arrayBuffer());
+      const tmp = path.join(os.tmpdir(), `${leadId}_full_${Date.now()}.mp3`);
+      fs.writeFileSync(tmp, buf);
+      const url = await uploadToShopify(tmp, filename, 'audio/mpeg');
+      fs.unlink(tmp, () => {});
+      console.log(`ENSURE_FULL backfilled ${filename} (${buf.length} bytes)`);
+      res.json({ ok: true, ready: true, backfilled: true, url, bytes: buf.length });
+    } finally {
+      delete _ensuringFull[leadId];
+    }
+  } catch (e) {
+    console.log('ENSURE_FULL ERROR:', e.message);
+    delete _ensuringFull[leadId];
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 app.get('/lyrics', async (req, res) => {
   const leadId = req.query.lead_id;
   if (!leadId) return res.status(400).json({ ready: false, error: 'no lead_id' });
