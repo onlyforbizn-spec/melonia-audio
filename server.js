@@ -728,6 +728,10 @@ app.get('/admin/envcheck', (req, res) => {
     openAiLen: (process.env.OPENAI_API_KEY || '').length,
     hasSuno: !!process.env.SUNO_API_KEY,
     hasShopifyToken: !!process.env.SHOPIFY_TOKEN,
+    railway_service_name: process.env.RAILWAY_SERVICE_NAME || null,
+    railway_service_id: process.env.RAILWAY_SERVICE_ID || null,
+    railway_environment: process.env.RAILWAY_ENVIRONMENT_NAME || null,
+    railway_project: process.env.RAILWAY_PROJECT_NAME || null,
     envKeyNames: Object.keys(process.env).filter(k => !k.startsWith('RAILWAY') && k !== 'PATH').sort()
   });
 });
