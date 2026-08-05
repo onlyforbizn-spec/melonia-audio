@@ -41,6 +41,36 @@ function shopifyGraphQL(body) {
   }).then(r => r.json());
 }
 
+// --- One-time admin: manage the orders/paid webhook for the Spotify distribution workflow ---
+const SPOTIFY_WEBHOOK_KEY = 'melonia-spotify-2026';
+const SPOTIFY_WEBHOOK_URL = 'https://n8n.melodineapi.com/webhook/melonia-spotify-order';
+
+app.get('/admin/list-webhooks', async (req, res) => {
+  if (req.query.key !== SPOTIFY_WEBHOOK_KEY) return res.status(403).json({ error: 'forbidden' });
+  try {
+    const r = await shopifyGraphQL({
+      query: `{ webhookSubscriptions(first: 40) { edges { node { id topic endpoint { __typename ... on WebhookHttpEndpoint { callbackUrl } } } } } }`
+    });
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: String((e && e.message) || e) }); }
+});
+
+app.get('/admin/setup-spotify-webhook', async (req, res) => {
+  if (req.query.key !== SPOTIFY_WEBHOOK_KEY) return res.status(403).json({ error: 'forbidden' });
+  try {
+    const r = await shopifyGraphQL({
+      query: `mutation($url: URL!) {
+        webhookSubscriptionCreate(topic: ORDERS_PAID, webhookSubscription: { callbackUrl: $url, format: JSON }) {
+          webhookSubscription { id topic endpoint { __typename ... on WebhookHttpEndpoint { callbackUrl } } }
+          userErrors { field message }
+        }
+      }`,
+      variables: { url: SPOTIFY_WEBHOOK_URL }
+    });
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: String((e && e.message) || e) }); }
+});
+
 // cherche un fichier dans Shopify par son nom, renvoie son URL CDN si trouvé
 async function findFileUrl(filename) {
   const isPreview = filename.startsWith('preview_');
