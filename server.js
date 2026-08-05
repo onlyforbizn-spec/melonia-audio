@@ -721,6 +721,17 @@ app.post('/transcribe', anyFile, async (req, res) => {
   }
 });
 
+app.get('/admin/envcheck', (req, res) => {
+  if (req.query.key !== 'melonia-env-2026') return res.status(403).json({ error: 'forbidden' });
+  res.json({
+    hasOpenAI: !!process.env.OPENAI_API_KEY,
+    openAiLen: (process.env.OPENAI_API_KEY || '').length,
+    hasSuno: !!process.env.SUNO_API_KEY,
+    hasShopifyToken: !!process.env.SHOPIFY_TOKEN,
+    envKeyNames: Object.keys(process.env).filter(k => !k.startsWith('RAILWAY') && k !== 'PATH').sort()
+  });
+});
+
 app.get('/', (req, res) => res.send('Melonia audio server OK'));
 
 app.use((err, req, res, next) => {
