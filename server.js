@@ -692,7 +692,7 @@ app.use('/clone', express.static(path.join(__dirname, 'clone')));
 // Voice input widget for the quiz (mic -> speech-to-text on the 3 open questions)
 app.get('/voice-input.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.setHeader('Cache-Control', 'public, max-age=30');
   res.sendFile(path.join(__dirname, 'voice-input.js'));
 });
 
