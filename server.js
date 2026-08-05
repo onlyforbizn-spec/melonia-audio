@@ -689,6 +689,38 @@ app.get('/clone-sink', (req, res) => { res.type('text/plain; charset=utf-8').sen
 
 app.use('/clone', express.static(path.join(__dirname, 'clone')));
 
+// Voice input widget for the quiz (mic -> speech-to-text on the 3 open questions)
+app.get('/voice-input.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.sendFile(path.join(__dirname, 'voice-input.js'));
+});
+
+// Transcribe an audio blob to text via OpenAI (server-side key)
+app.post('/transcribe', anyFile, async (req, res) => {
+  const file = pickFile(req);
+  try {
+    if (!file) return res.status(400).json({ error: 'no audio' });
+    if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: 'transcription not configured' });
+    const buf = fs.readFileSync(file.path);
+    const fd = new FormData();
+    fd.append('file', new Blob([buf], { type: file.mimetype || 'audio/webm' }), file.originalname || 'audio.webm');
+    fd.append('model', 'gpt-4o-transcribe');
+    const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: fd
+    });
+    const j = await r.json();
+    if (j.error) return res.status(500).json({ error: (j.error && j.error.message) || 'transcription failed' });
+    res.json({ text: j.text || '' });
+  } catch (e) {
+    res.status(500).json({ error: String((e && e.message) || e) });
+  } finally {
+    if (file && file.path) fs.unlink(file.path, () => {});
+  }
+});
+
 app.get('/', (req, res) => res.send('Melonia audio server OK'));
 
 app.use((err, req, res, next) => {
