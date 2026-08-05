@@ -696,19 +696,33 @@ app.get('/voice-input.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'voice-input.js'));
 });
 
-// Transcribe an audio blob to text via OpenAI (server-side key)
+// OpenAI key: env var if present, else from the shop metafield melonia.openai_key (cached in memory)
+let _openaiKeyCache = null;
+async function getOpenAIKey() {
+  if (process.env.OPENAI_API_KEY) return process.env.OPENAI_API_KEY;
+  if (_openaiKeyCache) return _openaiKeyCache;
+  try {
+    const r = await shopifyGraphQL({ query: `{ shop { metafield(namespace: "melonia", key: "openai_key") { value } } }` });
+    const v = r && r.data && r.data.shop && r.data.shop.metafield && r.data.shop.metafield.value;
+    if (v) { _openaiKeyCache = v; return v; }
+  } catch (e) { console.log('getOpenAIKey error:', e.message); }
+  return null;
+}
+
+// Transcribe an audio blob to text via OpenAI (key from env or shop metafield)
 app.post('/transcribe', anyFile, async (req, res) => {
   const file = pickFile(req);
   try {
     if (!file) return res.status(400).json({ error: 'no audio' });
-    if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: 'transcription not configured' });
+    const apiKey = await getOpenAIKey();
+    if (!apiKey) return res.status(500).json({ error: 'transcription not configured' });
     const buf = fs.readFileSync(file.path);
     const fd = new FormData();
     fd.append('file', new Blob([buf], { type: file.mimetype || 'audio/webm' }), file.originalname || 'audio.webm');
     fd.append('model', 'gpt-4o-transcribe');
     const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
+      headers: { 'Authorization': `Bearer ${apiKey}` },
       body: fd
     });
     const j = await r.json();
@@ -719,21 +733,6 @@ app.post('/transcribe', anyFile, async (req, res) => {
   } finally {
     if (file && file.path) fs.unlink(file.path, () => {});
   }
-});
-
-app.get('/admin/envcheck', (req, res) => {
-  if (req.query.key !== 'melonia-env-2026') return res.status(403).json({ error: 'forbidden' });
-  res.json({
-    hasOpenAI: !!process.env.OPENAI_API_KEY,
-    openAiLen: (process.env.OPENAI_API_KEY || '').length,
-    hasSuno: !!process.env.SUNO_API_KEY,
-    hasShopifyToken: !!process.env.SHOPIFY_TOKEN,
-    railway_service_name: process.env.RAILWAY_SERVICE_NAME || null,
-    railway_service_id: process.env.RAILWAY_SERVICE_ID || null,
-    railway_environment: process.env.RAILWAY_ENVIRONMENT_NAME || null,
-    railway_project: process.env.RAILWAY_PROJECT_NAME || null,
-    envKeyNames: Object.keys(process.env).filter(k => !k.startsWith('RAILWAY') && k !== 'PATH').sort()
-  });
 });
 
 app.get('/', (req, res) => res.send('Melonia audio server OK'));
