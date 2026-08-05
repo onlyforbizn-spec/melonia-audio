@@ -641,6 +641,143 @@ app.get('/ensure_full', async (req, res) => {
   }
 });
 
+// =========== Sélection du meilleur des 2 clips Suno ===========
+// Suno renvoie 2 clips par génération ; historiquement on livrait le clip [0] à l'aveugle.
+// ~40% des chansons finissent sans fondu (fin abrupte / coupée ~4:00, "musique pas finie").
+// Cet endpoint télécharge les 2 clips, mesure le RMS de leur DERNIÈRE seconde, et livre celui
+// qui se résout le mieux (vrai fondu). Si les 2 sont abrupts, il applique un fondu de secours.
+// SÉCURITÉ : toute erreur -> il sert le clip [0] SANS fondu (= comportement historique exact).
+// Il ne peut donc jamais dégrader la livraison. Deux modes :
+//   /best_audio?u0=&i0=&d0=&u1=&i1=&d1=            -> renvoie le BINAIRE du clip choisi (fondu si besoin)
+//   /best_audio?mode=info&u0=&i0=&d0=&u1=&i1=&d1=  -> renvoie le JSON du choix (pour le meta / 3rd verse)
+const BEST_FINI_DB = -42;      // fin <= -42 dB = résolue (fondu/silence)
+const BEST_FADE_ABOVE_DB = -40;// fin > -40 dB = abrupte -> candidate au fondu de secours
+const BEST_FADE_SECONDS = 2.5; // durée du fondu de secours
+const BEST_SWAP_MIN_GAIN = 15; // s : on ne swap 2 clips finis que si l'autre apporte >= 15s de contenu
+const _endRmsCache = new Map(); // id -> { v, t } (évite de re-télécharger entre l'appel info et l'appel binaire)
+
+function _bcDownload(url, tag) {
+  return fetch(url).then(async (r) => {
+    if (!r.ok) throw new Error('download ' + r.status);
+    const buf = Buffer.from(await r.arrayBuffer());
+    const p = path.join(os.tmpdir(), `bc_${tag}_${Date.now()}_${Math.random().toString(36).slice(2)}.mp3`);
+    fs.writeFileSync(p, buf);
+    return { path: p, bytes: buf.length };
+  });
+}
+
+// RMS moyen des `sec` dernières secondes d'un fichier local (dB). null si mesure impossible.
+function _bcEndRms(filePath, sec) {
+  return new Promise((resolve) => {
+    execFile('ffmpeg', ['-hide_banner', '-nostats', '-sseof', String(-Math.abs(sec)), '-i', filePath,
+      '-af', 'volumedetect', '-f', 'null', '-'], (err, stdout, stderr) => {
+      const m = String(stderr || '').match(/mean_volume:\s*(-?\d+(?:\.\d+)?)\s*dB/);
+      resolve(m ? parseFloat(m[1]) : null);
+    });
+  });
+}
+
+function _bcDuration(filePath) {
+  return new Promise((resolve) => {
+    execFile('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', filePath],
+      (err, stdout) => { const v = parseFloat(String(stdout || '').trim()); resolve(isFinite(v) ? v : null); });
+  });
+}
+
+// Décide quel clip livrer. c = { id, url, dur, end } ; end peut être null (mesure KO).
+function _bcPick(c0, c1) {
+  if (!c0) return null;
+  const bothUnknown = c0.end === null && (!c1 || c1.end === null);
+  if (bothUnknown) return { clip: c0, index: 0, wasCut: false }; // analyse KO -> clip 0, historique
+  const isFini = (c) => c && c.end !== null && c.end <= BEST_FINI_DB;
+  if (!c1) return { clip: c0, index: 0, wasCut: c0.end !== null && c0.end > BEST_FADE_ABOVE_DB };
+  const f0 = isFini(c0), f1 = isFini(c1);
+  if (f0) {
+    if (f1 && (c1.dur || 0) >= (c0.dur || 0) + BEST_SWAP_MIN_GAIN) return { clip: c1, index: 1, wasCut: false };
+    return { clip: c0, index: 0, wasCut: false };
+  }
+  if (f1) return { clip: c1, index: 1, wasCut: false };
+  // les 2 abrupts -> le plus long + fondu de secours (seulement si les 2 fins sont bien mesurées)
+  const longer = (c0.dur || 0) >= (c1.dur || 0) ? c0 : c1;
+  const bothMeasured = c0.end !== null && c1.end !== null;
+  return { clip: longer, index: longer === c0 ? 0 : 1, wasCut: bothMeasured };
+}
+
+app.get('/best_audio', async (req, res) => {
+  const q = req.query;
+  const mode = q.mode || 'binary';
+  const u0 = q.u0, i0 = q.i0, d0 = parseFloat(q.d0) || 0;
+  const u1 = q.u1, i1 = q.i1, d1 = parseFloat(q.d1) || 0;
+  if (!u0) return res.status(400).json({ error: 'u0 required' });
+  const tmps = [];
+  const cleanup = () => tmps.forEach((p) => fs.unlink(p, () => {}));
+  const localByTag = {};
+  try {
+    if (_endRmsCache.size > 500) _endRmsCache.clear();
+    // fin d'un clip (cache court par id pour ne pas re-télécharger entre appel info et appel binaire)
+    async function endOf(url, id, tag) {
+      const key = id || url;
+      const dl = await _bcDownload(url, tag);
+      tmps.push(dl.path); localByTag[tag] = dl.path;
+      const c = _endRmsCache.get(key);
+      if (c && (Date.now() - c.t) < 600000) return c.v;
+      const v = await _bcEndRms(dl.path, 1.2);
+      _endRmsCache.set(key, { v, t: Date.now() });
+      return v;
+    }
+    const e0 = await endOf(u0, i0, 'c0');
+    const e1 = u1 ? await endOf(u1, i1, 'c1') : null;
+    const c0 = { id: i0, url: u0, dur: d0, end: e0 };
+    const c1 = u1 ? { id: i1, url: u1, dur: d1, end: e1 } : null;
+    const pick = _bcPick(c0, c1) || { clip: c0, index: 0, wasCut: false };
+
+    if (mode === 'info') {
+      cleanup();
+      return res.json({
+        chosen_index: pick.index, chosen_id: pick.clip.id,
+        chosen_duration: pick.clip.dur, was_cut: !!pick.wasCut, end0: e0, end1: e1
+      });
+    }
+
+    // mode binaire : le fichier du clip choisi est déjà téléchargé (localByTag)
+    let src = localByTag[pick.index === 1 ? 'c1' : 'c0'];
+    if (!src) { const dl = await _bcDownload(pick.clip.url, 'ch'); tmps.push(dl.path); src = dl.path; }
+    let outPath = src;
+    if (pick.wasCut) {
+      const dur = (await _bcDuration(src)) || pick.clip.dur || 0;
+      const st = Math.max(0, dur - BEST_FADE_SECONDS);
+      const faded = path.join(os.tmpdir(), `bc_fade_${Date.now()}.mp3`);
+      tmps.push(faded);
+      await new Promise((resolve, reject) => {
+        execFile('ffmpeg', ['-y', '-i', src, '-af', `afade=t=out:st=${st.toFixed(2)}:d=${BEST_FADE_SECONDS}`,
+          '-c:a', 'libmp3lame', '-b:a', '192k', faded], (err) => (err ? reject(err) : resolve()));
+      });
+      outPath = faded;
+    }
+    res.setHeader('X-Chosen-Id', String(pick.clip.id || ''));
+    res.setHeader('X-Chosen-Index', String(pick.index));
+    res.setHeader('X-Was-Cut', pick.wasCut ? '1' : '0');
+    res.setHeader('Content-Type', 'audio/mpeg');
+    console.log(`BEST_AUDIO chosen=${pick.index} id=${pick.clip.id} wasCut=${pick.wasCut} ends=[${e0},${e1}]`);
+    res.sendFile(outPath, () => cleanup());
+  } catch (e) {
+    console.log('BEST_AUDIO ERROR (fallback clip0):', e.message);
+    // Filet ultime : comportement historique = clip 0 brut, sans fondu. Jamais casser la livraison.
+    if (mode === 'info') { cleanup(); return res.json({ chosen_index: 0, chosen_id: i0, chosen_duration: d0, was_cut: false, fallback: true }); }
+    try {
+      const dl = await _bcDownload(u0, 'fb');
+      res.setHeader('X-Chosen-Id', String(i0 || ''));
+      res.setHeader('X-Was-Cut', '0');
+      res.setHeader('X-Fallback', '1');
+      res.setHeader('Content-Type', 'audio/mpeg');
+      return res.sendFile(dl.path, () => fs.unlink(dl.path, () => {}));
+    } catch (e2) {
+      cleanup();
+      return res.status(502).send('best_audio failed: ' + e.message);
+    }
+  }
+});
+
 app.get('/lyrics', async (req, res) => {
   const leadId = req.query.lead_id;
   if (!leadId) return res.status(400).json({ ready: false, error: 'no lead_id' });
