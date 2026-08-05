@@ -280,3 +280,15 @@
     };
   }
 })();
+
+/* Melonia — load the quiz voice-input widget (defensive: no-op on pages without the 3 quiz textareas) */
+(function () {
+  try {
+    if (window.__mlnVoiceLoaded) return;
+    window.__mlnVoiceLoaded = true;
+    var s = document.createElement('script');
+    s.src = 'https://melonia-audio-production.up.railway.app/voice-input.js';
+    s.async = true;
+    (document.head || document.documentElement).appendChild(s);
+  } catch (e) {}
+})();
