@@ -559,11 +559,28 @@ app.get('/ready', async (req, res) => {
   } catch (e) { console.log('READY ERROR:', e.message); res.json({ ready: false }); }
 });
 
+// Long-poll borné : attend qu'un fichier apparaisse (l'indexation Shopify Files peut
+// prendre quelques secondes à ~1 min). Sert à GATER l'email de livraison sur la présence
+// réelle du fichier -> on n'envoie jamais "voici ta chanson" avant qu'elle soit servable.
+// Borne dure à 180 s pour ne pas tenir la requête n8n ouverte indéfiniment.
+async function waitForFileUrl(filename, waitSeconds) {
+  const deadline = Date.now() + Math.min(Math.max(waitSeconds, 0), 180) * 1000;
+  let url = await findFileUrl(filename);
+  while (!url && Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 3000));
+    url = await findFileUrl(filename);
+  }
+  return url;
+}
+
 app.get('/full', async (req, res) => {
   const leadId = req.query.lead_id;
   if (!leadId) return res.status(400).json({ ready: false, error: 'no lead_id' });
+  const wait = parseInt(req.query.wait, 10) || 0;
   try {
-    const url = await findFileUrl(`${leadId}.mp3`);
+    const url = wait > 0
+      ? await waitForFileUrl(`${leadId}.mp3`, wait)
+      : await findFileUrl(`${leadId}.mp3`);
     if (url) return res.json({ ready: true, url });
     res.json({ ready: false });
   } catch (e) { console.log('FULL ERROR:', e.message); res.json({ ready: false }); }
@@ -791,8 +808,11 @@ app.get('/lyrics', async (req, res) => {
 app.get('/pdf', async (req, res) => {
   const leadId = req.query.lead_id;
   if (!leadId) return res.status(400).json({ ready: false, error: 'no lead_id' });
+  const wait = parseInt(req.query.wait, 10) || 0;
   try {
-    const url = await findFileUrl(`${leadId}.pdf`);
+    const url = wait > 0
+      ? await waitForFileUrl(`${leadId}.pdf`, wait)
+      : await findFileUrl(`${leadId}.pdf`);
     if (url) return res.json({ ready: true, url });
     res.json({ ready: false });
   } catch (e) { console.log('PDF ERROR:', e.message); res.json({ ready: false }); }
