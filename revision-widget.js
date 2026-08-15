@@ -95,7 +95,7 @@
 '.mlnrev-input,.mlnrev-area{width:100%;background:var(--mlnrev-card);color:var(--mlnrev-text);border:2px solid var(--mlnrev-border);border-radius:13px;padding:15px 16px;font-family:var(--mlnrev-font-body);font-size:16px;transition:border-color .15s ease}',
 '.mlnrev-input:focus,.mlnrev-area:focus{outline:none;border-color:var(--mlnrev-accent)}',
 '.mlnrev-input::placeholder,.mlnrev-area::placeholder{color:var(--mlnrev-muted);opacity:.7}',
-'.mlnrev-hint{font-size:13px;color:var(--mlnrev-muted);margin-top:7px}',
+'.mlnrev-opt{opacity:.6;font-weight:400}.mlnrev-hint{font-size:13px;color:var(--mlnrev-muted);margin-top:7px}',
 '.mlnrev-area{min-height:74px;resize:vertical}',
 '.mlnrev-chips{display:flex;flex-wrap:wrap;gap:10px}',
 '.mlnrev-chip{cursor:pointer;border:2px solid var(--mlnrev-border);background:var(--mlnrev-card);color:var(--mlnrev-text);border-radius:999px;padding:11px 19px;font-size:15px;font-family:var(--mlnrev-font-body);transition:all .12s ease}',
@@ -180,7 +180,7 @@
 
   var TPL = {
     name: '<div class="mlnrev-field"><label>Which name?</label><input class="mlnrev-input" data-f="name" placeholder="e.g. Sarah"></div>'
-        + '<div class="mlnrev-field"><label>How should it sound?</label><input class="mlnrev-input" data-f="name_say" placeholder="Spell it out — e.g. Sah-rah"><div class="mlnrev-hint">Write it the way you would say it out loud.</div></div>',
+        + '<div class="mlnrev-field"><label>How should it sound? <span class="mlnrev-opt">(optional)</span></label><input class="mlnrev-input" data-f="name_say" placeholder="Leave blank and we\'ll handle it"><div class="mlnrev-hint">Only if you want it a specific way — otherwise we work out the pronunciation for you.</div></div>',
     line: '<div class="mlnrev-field"><label>What it says now</label><input class="mlnrev-input" data-f="from" placeholder="The current word or line"></div>'
         + '<div class="mlnrev-field"><label>What it should say</label><input class="mlnrev-input" data-f="to" placeholder="The new word or line"></div>',
     vibe: '<div class="mlnrev-field"><label>Style</label><div class="mlnrev-chips" data-g="genre">'
@@ -191,7 +191,7 @@
   function fval(f) { var e = fieldsEl.querySelector('[data-f="' + f + '"]'); return e ? e.value.trim() : ''; }
   function validate() {
     var ok = false;
-    if (state.kind === 'name') ok = fval('name') && fval('name_say');
+    if (state.kind === 'name') ok = !!fval('name');   // la prononciation est facultative : Claude la deduit du prenom
     else if (state.kind === 'line') ok = fval('from') && fval('to');
     else if (state.kind === 'vibe') ok = state.genre && state.voice;
     if (!ok && freeEl.value.trim()) ok = true;
