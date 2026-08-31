@@ -17,6 +17,7 @@
 (function () {
   'use strict';
   var KEY = 'mln_campaign';
+  var KEY_ID = 'mln_campaign_id'; // ID numérique de campagne Meta (utm_campaign), capté au quiz
   var ALIAS = {
     big4: 'big4', bigfour: 'big4', 'big-4': 'big4', big_four: 'big4', bf: 'big4',
     us: 'us', usa: 'us', 'us-only': 'us'
@@ -33,6 +34,8 @@
   function ss() { try { return window.sessionStorage; } catch (e) { return null; } }
   function readCampaign() { var s = ss(); try { return (s && s.getItem(KEY)) || ''; } catch (e) { return ''; } }
   function writeCampaign(v) { var s = ss(); try { if (s) s.setItem(KEY, v); } catch (e) {} }
+  function readCampaignId() { var s = ss(); try { return (s && s.getItem(KEY_ID)) || ''; } catch (e) { return ''; } }
+  function writeCampaignId(v) { var s = ss(); try { if (s) s.setItem(KEY_ID, v); } catch (e) {} }
 
   // Détecte la campagne depuis le nom de la page d'atterrissage quiz. null si ce n'est pas une
   // page quiz (ex. summary, landing-page) → on ne pose rien, on se contente de lire à l'injection.
@@ -54,6 +57,14 @@
       var override = normalize(q.get('c'));
       if (override) writeCampaign(override);
       else if (!readCampaign()) writeCampaign(landing);
+      // L'ID de campagne Meta (utm_campaign numérique) est capté À PART, dans sa propre clé —
+      // jamais dans le tag texte (leçon du 3/08 : l'ID dans le tag faisait disparaître des leads).
+      // Le serveur le bucketise en us/big4 via les noms de campagne Meta (metaCampaignBucketMap),
+      // ce qui répare l'attribution des demandes d'extrait quand l'ad atterrit direct sur
+      // /pages/quiz sans ?c= (c'est le cas de TOUTES les ads — prouvé le 8/08).
+      // Un nouvel ID explicite écrase (le dernier clic d'ad gagne) ; l'absence n'efface jamais.
+      var cid = String(q.get('utm_campaign') || '').trim();
+      if (/^\d{6,20}$/.test(cid)) writeCampaignId(cid);
     }
   } catch (e) {}
 
@@ -241,6 +252,23 @@
               payload.message = (withLine.indexOf('Campaign:') !== -1)
                 ? withLine
                 : ('Campaign: ' + c + '\n' + payload.message);
+            }
+            // ID de campagne Meta capté au quiz → champ dédié + ligne « CampaignId: » dans le
+            // message. La ligne voyage avec le brief jusqu'au POST /track du workflow Suno
+            // (aucun node n8n à toucher — même mécanisme que « Funnel: country ») ; le serveur
+            // la parse (parseBrief) et bucketise en us/big4. Rien n'est ajouté si pas d'ID.
+            var cid = readCampaignId();
+            if (/^\d{6,20}$/.test(cid)) {
+              payload.campaign_id = cid;
+              if (typeof payload.message === 'string' && payload.message.indexOf('CampaignId:') === -1) {
+                var withId = payload.message.replace(
+                  /(Campaign:[^\n]*\n)/,
+                  '$1CampaignId: ' + cid + '\n'
+                );
+                payload.message = (withId.indexOf('CampaignId:') !== -1)
+                  ? withId
+                  : ('CampaignId: ' + cid + '\n' + payload.message);
+              }
             }
             // Reformate le téléphone en E.164 selon le pays choisi (#mlnCpCountry) : US défaut, +CA/AU/NZ.
             // La page envoie le numéro local ; ici on préfixe le bon indicatif pour que le SMS Onoff
