@@ -340,15 +340,38 @@ function generateLyricsPDF(outPath, recipientName, lyrics) {
   });
 }
 
+// Suno renvoie parfois un conteneur M4A/AAC au lieu d'un MP3 (constaté le 01/09/2026, aléatoire
+// par requête). Sans garde, `-acodec copy` vers .mp3 casse net, et un upload direct publierait des
+// octets AAC sous un nom .mp3. Ce garde sonde le flux audio et ne réencode QUE si ce n'est pas déjà
+// du MP3 (un vrai MP3 passe tel quel, zéro transcodage inutile). En cas d'échec de conversion, on
+// rend le fichier d'origine : comportement d'avant, l'erreur éventuelle reste visible en aval.
+function ensureMp3(srcPath) {
+  return new Promise((resolve) => {
+    execFile('ffprobe', ['-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=codec_name',
+      '-of', 'default=nw=1:nk=1', srcPath], (probeErr, stdout) => {
+      const codec = String(stdout || '').trim();
+      if (!probeErr && codec === 'mp3') return resolve({ path: srcPath, converted: false });
+      const out = path.join(os.tmpdir(), `mp3_${Date.now()}_${Math.random().toString(36).slice(2)}.mp3`);
+      execFile('ffmpeg', ['-y', '-i', srcPath, '-codec:a', 'libmp3lame', '-b:a', '192k', out], (convErr) => {
+        if (convErr) { fs.unlink(out, () => {}); return resolve({ path: srcPath, converted: false }); }
+        console.log(`ENSURE_MP3: converti (codec source: ${codec || 'inconnu'})`);
+        resolve({ path: out, converted: true });
+      });
+    });
+  });
+}
+
 // =========== Endpoints ===========
 
-app.post('/trim', anyFile, (req, res) => {
+app.post('/trim', anyFile, async (req, res) => {
   const file = pickFile(req);
   console.log('TRIM: file =', file ? file.originalname + ' / ' + file.size + ' bytes' : 'NONE');
   if (!file) return res.status(400).send('no file received');
+  const src = await ensureMp3(file.path);
   const out = path.join(os.tmpdir(), `trim_${Date.now()}.mp3`);
-  execFile('ffmpeg', ['-y', '-i', file.path, '-t', '90', '-acodec', 'copy', out], (err) => {
+  execFile('ffmpeg', ['-y', '-i', src.path, '-t', '90', '-acodec', 'copy', out], (err) => {
     fs.unlink(file.path, () => {});
+    if (src.converted) fs.unlink(src.path, () => {});
     if (err) { console.log('FFMPEG ERROR:', err.message); return res.status(500).send('ffmpeg error: ' + err.message); }
     res.sendFile(out, () => fs.unlink(out, () => {}));
   });
@@ -359,8 +382,10 @@ app.post('/save_audio', anyFile, async (req, res) => {
   if (!file) return res.status(400).send('no file received');
   const leadId = req.body.lead_id || 'unknown';
   try {
-    const url = await uploadToShopify(file.path, `${leadId}.mp3`, 'audio/mpeg');
+    const src = await ensureMp3(file.path);
+    const url = await uploadToShopify(src.path, `${leadId}.mp3`, 'audio/mpeg');
     fs.unlink(file.path, () => {});
+    if (src.converted) fs.unlink(src.path, () => {});
     res.json({ lead_id: leadId, url });
   } catch (e) { console.log('SAVE ERROR:', e.message); res.status(500).send('upload error: ' + e.message); }
 });
@@ -385,9 +410,11 @@ app.post('/replace_audio', anyFile, async (req, res) => {
         await new Promise(r => setTimeout(r, 1500));
       }
     }
-    // 3) uploader la nouvelle version sous le même nom
-    const url = await uploadToShopify(file.path, filename, 'audio/mpeg');
+    // 3) uploader la nouvelle version sous le même nom (garde ensureMp3 : Suno rend parfois un m4a)
+    const src = await ensureMp3(file.path);
+    const url = await uploadToShopify(src.path, filename, 'audio/mpeg');
     fs.unlink(file.path, () => {});
+    if (src.converted) fs.unlink(src.path, () => {});
     res.json({ lead_id: leadId, url, replaced: !!(existing && existing.id) });
   } catch (e) {
     console.log('REPLACE ERROR:', e.message);
@@ -457,8 +484,10 @@ app.post('/save_preview', anyFile, async (req, res) => {
   if (!file) return res.status(400).send('no file received');
   const leadId = req.body.lead_id || 'unknown';
   try {
-    const url = await uploadToShopify(file.path, `preview_${leadId}.mp3`, 'audio/mpeg');
+    const src = await ensureMp3(file.path);
+    const url = await uploadToShopify(src.path, `preview_${leadId}.mp3`, 'audio/mpeg');
     fs.unlink(file.path, () => {});
+    if (src.converted) fs.unlink(src.path, () => {});
     res.json({ lead_id: leadId, url });
   } catch (e) { console.log('SAVE ERROR:', e.message); res.status(500).send('upload error: ' + e.message); }
 });
@@ -483,9 +512,11 @@ app.post('/replace_preview', anyFile, async (req, res) => {
         await new Promise(r => setTimeout(r, 1500));
       }
     }
-    // 3) uploader le nouvel extrait sous le même nom
-    const url = await uploadToShopify(file.path, filename, 'audio/mpeg');
+    // 3) uploader le nouvel extrait sous le même nom (garde ensureMp3 : Suno rend parfois un m4a)
+    const src = await ensureMp3(file.path);
+    const url = await uploadToShopify(src.path, filename, 'audio/mpeg');
     fs.unlink(file.path, () => {});
+    if (src.converted) fs.unlink(src.path, () => {});
     res.json({ lead_id: leadId, url, replaced: !!(existing && existing.id) });
   } catch (e) {
     console.log('REPLACE PREVIEW ERROR:', e.message);
@@ -644,8 +675,10 @@ app.get('/ensure_full', async (req, res) => {
       const buf = Buffer.from(await audioResp.arrayBuffer());
       const tmp = path.join(os.tmpdir(), `${leadId}_full_${Date.now()}.mp3`);
       fs.writeFileSync(tmp, buf);
-      const url = await uploadToShopify(tmp, filename, 'audio/mpeg');
+      const src = await ensureMp3(tmp);
+      const url = await uploadToShopify(src.path, filename, 'audio/mpeg');
       fs.unlink(tmp, () => {});
+      if (src.converted) fs.unlink(src.path, () => {});
       console.log(`ENSURE_FULL backfilled ${filename} (${buf.length} bytes)`);
       res.json({ ok: true, ready: true, backfilled: true, url, bytes: buf.length });
     } finally {
