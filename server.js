@@ -363,6 +363,46 @@ function ensureMp3(srcPath) {
 
 // =========== Endpoints ===========
 
+// Lien de PARTAGE self-contained : /s/MLN-XXXX (constaté 01/09/2026, cas Gina Emerton).
+// Pourquoi : le partage copiait l'URL de page `your-song?lead=…`, mais l'og:url de la page
+// Shopify est CANONIQUE (sans query) — Facebook fait atterrir le clic d'une carte partagée sur
+// l'og:url → le destinataire arrivait sur your-song SANS lead → « We couldn't find your song ».
+// Ici, NOUS servons l'OG (og:url = cette URL même, avec le lead dans le CHEMIN) + redirection
+// instantanée vers la page complète. Un partage ne dépend plus jamais de la survie d'une query.
+app.get('/s/:lead', async (req, res) => {
+  const lead = String(req.params.lead || '').toUpperCase().trim();
+  if (!/^ML[NE]-[A-Z0-9]{3,}$/.test(lead)) return res.redirect(302, 'https://melonia-song.com');
+  let name = '';
+  try {
+    const node = await findFileNode(`${lead}.meta.json`);
+    if (node && node.url) {
+      const r = await fetch(node.url);
+      if (r.ok) { const m = await r.json(); name = String(m.recipient_name || '').trim(); }
+    }
+  } catch (e) { /* pas de meta -> partage générique, jamais une erreur */ }
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const target = 'https://melonia-song.com/pages/your-song?lead=' + lead + (name ? ('&name=' + encodeURIComponent(name)) : '');
+  const self = 'https://melonia-audio-production.up.railway.app/s/' + lead;
+  const title = name && name.toLowerCase() !== 'you' ? `A song for ${name} \u{1F3B5}` : 'A song made just for you \u{1F3B5}';
+  res.set('Cache-Control', 'public, max-age=300');
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!doctype html><html><head><meta charset="utf-8">
+<title>${esc(title)}</title>
+<meta property="og:site_name" content="Melonia">
+<meta property="og:url" content="${self}">
+<meta property="og:title" content="${esc(title)}">
+<meta property="og:description" content="Listen to a custom song, written and sung just for one person — made with love on Melonia.">
+<meta property="og:type" content="music.song">
+<meta property="og:image" content="https://melonia-song.com/cdn/shop/files/hf_20260716_015518_8da205e8-484b-463c-a42f-c89b9be3f828.png">
+<meta name="twitter:card" content="summary">
+<meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="0;url=${esc(target)}">
+</head><body style="font-family:Georgia,serif;text-align:center;padding:60px 20px;background:#F4EEE5;color:#3D1A33;">
+<script>location.replace(${JSON.stringify(target)});</script>
+<p>${esc(title)}</p><p><a href="${esc(target)}" style="color:#3D1A33;">Listen to the song</a></p>
+</body></html>`);
+});
+
 app.post('/trim', anyFile, async (req, res) => {
   const file = pickFile(req);
   console.log('TRIM: file =', file ? file.originalname + ' / ' + file.size + ' bytes' : 'NONE');
