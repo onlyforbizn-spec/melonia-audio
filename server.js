@@ -603,6 +603,41 @@ app.post('/replace_lyrics', async (req, res) => {
   }
 });
 
+// Refait le PDF d'un lead depuis les paroles COURANTES (.txt) et le meta — en un seul appel,
+// avec le fileDelete préalable que /save_pdf n'a pas (Shopify n'écrase pas par nom). Posé le
+// 02/09/2026 pour l'auto-gestion des anomalies `pdf_perime`/`pdf_absent` : le workflow Révision
+// n'appelle jamais /save_pdf, ce endpoint permet au superviseur de réparer sans geste manuel.
+app.post('/refresh_pdf', async (req, res) => {
+  const leadId = String((req.body || {}).lead_id || req.query.lead_id || '').toUpperCase().trim();
+  if (!/^ML[NE]-[A-Z0-9]{3,}$/.test(leadId)) return res.status(400).json({ ok: false, error: 'lead_id invalide' });
+  try {
+    const metaNode = await findFileNode(`${leadId}.meta.json`);
+    if (!metaNode || !metaNode.url) return res.status(404).json({ ok: false, error: 'meta introuvable' });
+    const meta = await (await fetch(metaNode.url)).json();
+    const txtNode = await findFileNode(`${leadId}.txt`);
+    if (!txtNode || !txtNode.url) return res.status(404).json({ ok: false, error: 'paroles introuvables' });
+    const lyrics = await (await fetch(txtNode.url)).text();
+    if (!lyrics.trim()) return res.status(422).json({ ok: false, error: 'paroles vides' });
+    const existing = await findFileNode(`${leadId}.pdf`);
+    if (existing && existing.id) {
+      await deleteShopifyFile(existing.id);
+      for (let i = 0; i < 8; i++) {
+        const still = await findFileNode(`${leadId}.pdf`);
+        if (!still) break;
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+    const tmp = path.join(os.tmpdir(), `${leadId}_${Date.now()}.pdf`);
+    await generateLyricsPDF(tmp, String(meta.recipient_name || 'You'), lyrics);
+    const url = await uploadToShopify(tmp, `${leadId}.pdf`, 'application/pdf');
+    fs.unlink(tmp, () => {});
+    res.json({ ok: true, lead_id: leadId, url, replaced: !!(existing && existing.id) });
+  } catch (e) {
+    console.log('REFRESH PDF ERROR:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 app.post('/save_pdf', async (req, res) => {
   const { lead_id, recipient_name, lyrics } = req.body || {};
   if (!lead_id || !recipient_name || !lyrics) {
