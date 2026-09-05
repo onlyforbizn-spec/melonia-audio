@@ -7,7 +7,8 @@
      /pages/quiz?c=big4 (lien interne codé en dur → param transmis à coup sûr).
    - Sur le quiz, ce ?c=big4 pose le tag. La pub US va sur /pages/quiz sans param → défaut "us".
 
-   Stockage en sessionStorage (par onglet) :
+   Stockage du TAG texte en sessionStorage (par onglet) ; l'ID de campagne Meta, lui, est
+   TRIPLE-stocké (session + localStorage + cookie, TTL 7 j) — voir readCampaignId/writeCampaignId.
    - survit à toute la navigation du parcours (landing → quiz → summary, y compris le bouton "retour"),
    - meurt à la fermeture de l'onglet → jamais de tag périmé d'une session précédente.
    Règle : un ?c= explicite prime et écrit toujours ; sinon on ne pose le défaut que si RIEN n'est
@@ -18,6 +19,7 @@
   'use strict';
   var KEY = 'mln_campaign';
   var KEY_ID = 'mln_campaign_id'; // ID numérique de campagne Meta (utm_campaign), capté au quiz
+  var ID_TTL_MS = 7 * 24 * 3600 * 1000; // fenêtre d'attribution clic Meta (7 j), dernier clic gagne
   var ALIAS = {
     big4: 'big4', bigfour: 'big4', 'big-4': 'big4', big_four: 'big4', bf: 'big4',
     us: 'us', usa: 'us', 'us-only': 'us'
@@ -34,8 +36,36 @@
   function ss() { try { return window.sessionStorage; } catch (e) { return null; } }
   function readCampaign() { var s = ss(); try { return (s && s.getItem(KEY)) || ''; } catch (e) { return ''; } }
   function writeCampaign(v) { var s = ss(); try { if (s) s.setItem(KEY, v); } catch (e) {} }
-  function readCampaignId() { var s = ss(); try { return (s && s.getItem(KEY_ID)) || ''; } catch (e) { return ''; } }
-  function writeCampaignId(v) { var s = ss(); try { if (s) s.setItem(KEY_ID, v); } catch (e) {} }
+  // — ID de campagne : TRIPLE stockage (session + local + cookie), TTL 7 j, dernier clic gagne.
+  //   sessionStorage seul perdait ~1 demande Facebook sur 5 (mesuré 31/08→04/09) : le client
+  //   clique l'ad, ferme la webview FB, revient plus tard en direct → nouvelle session, ID perdu,
+  //   demande attribuée « us » à tort. local + cookie survivent au retour ; le TTL borne à la
+  //   même fenêtre que l'attribution Meta (7 j clic) → jamais de tag périmé au-delà.
+  function ls() { try { return window.localStorage; } catch (e) { return null; } }
+  function freshId(raw) { // "id.timestamp" → id si l'horodatage est dans la fenêtre, sinon ''
+    var i = String(raw || '').split('.');
+    if (i.length !== 2 || !/^\d{6,20}$/.test(i[0])) return '';
+    var t = parseInt(i[1], 10);
+    return (isFinite(t) && Date.now() - t <= ID_TTL_MS) ? i[0] : '';
+  }
+  function readCampaignId() {
+    var s = ss(); try { var v = s && s.getItem(KEY_ID); if (v && /^\d{6,20}$/.test(v)) return v; } catch (e) {}
+    var l = ls(); try { var w = freshId(l && l.getItem(KEY_ID)); if (w) return w; } catch (e) {}
+    try {
+      var m = document.cookie.match(new RegExp('(?:^|; )' + KEY_ID + '=([^;]*)'));
+      var c = freshId(m && m[1]);
+      if (c) return c;
+    } catch (e) {}
+    return '';
+  }
+  function writeCampaignId(v) {
+    var now = Date.now();
+    var s = ss(); try { if (s) s.setItem(KEY_ID, v); } catch (e) {}
+    var l = ls(); try { if (l) l.setItem(KEY_ID, v + '.' + now); } catch (e) {}
+    try {
+      document.cookie = KEY_ID + '=' + v + '.' + now + '; max-age=' + Math.floor(ID_TTL_MS / 1000) + '; path=/; SameSite=Lax';
+    } catch (e) {}
+  }
 
   // Détecte la campagne depuis le nom de la page d'atterrissage quiz. null si ce n'est pas une
   // page quiz (ex. summary, landing-page) → on ne pose rien, on se contente de lire à l'injection.
