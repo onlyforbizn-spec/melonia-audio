@@ -16,7 +16,7 @@
   css.textContent = [
     '.mln-voice-wrap{position:relative;}',
     '.mln-qe-textarea.mln-has-voice{padding-bottom:64px !important;}',
-    '.mln-voice{position:absolute;right:14px;bottom:14px;display:flex;align-items:center;gap:11px;z-index:3;}',
+    '.mln-voice{position:absolute;right:14px;bottom:14px;display:flex;align-items:center;gap:11px;z-index:3;cursor:pointer;padding:6px;margin:-6px;-webkit-tap-highlight-color:transparent;}',
     '.mln-voice-hint{font-family:inherit;font-size:14px;font-weight:600;color:#B5623B;white-space:nowrap;text-align:right;max-width:150px;line-height:1.2;}',
     '.mln-voice-btn{width:52px;height:52px;border-radius:50%;background:' + ORANGE + ' !important;color:#fff !important;border:none !important;display:inline-flex !important;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 18px rgba(233,118,75,.45);transition:transform .15s ease,box-shadow .15s ease,background .15s ease;-webkit-tap-highlight-color:transparent;flex-shrink:0;padding:0;}',
     '.mln-voice-btn:hover{box-shadow:0 8px 22px rgba(233,118,75,.55);}',
@@ -110,7 +110,12 @@
       } catch (e) { say('Network error'); setTimeout(setIdle, 1800); }
     }
 
-    btn.addEventListener('click', function () { if (rec && rec.state === 'recording') stop(); else start(); });
+    // Toute la zone (texte « Speak your answer » + rond) est cliquable — le libellé seul
+    // récoltait des centaines de taps sans effet (mesuré Lens 01-06/09).
+    ctrl.addEventListener('click', function () {
+      if (btn.classList.contains('busy')) return;
+      if (rec && rec.state === 'recording') stop(); else start();
+    });
   }
 
   function init() { TARGETS.forEach(function (id) { attach(document.getElementById(id)); }); }
