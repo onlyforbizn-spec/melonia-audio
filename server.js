@@ -422,6 +422,12 @@ app.post('/save_audio', anyFile, async (req, res) => {
   if (!file) return res.status(400).send('no file received');
   const leadId = req.body.lead_id || 'unknown';
   try {
+    // Idempotence (09/09/2026) : n8n retente cet appel quand le proxy Railway coupe la réponse
+    // par un 502 alors que l'upload, lui, est allé au bout. Sans ce garde, la 2e tentative
+    // republie le MP3 et Shopify RENOMME le doublon -> fichier orphelin, jamais servi.
+    // Une nouvelle version d'une chanson existante passe par /replace_audio, jamais par ici.
+    const already = await findFileUrl(`${leadId}.mp3`);
+    if (already) { fs.unlink(file.path, () => {}); return res.json({ lead_id: leadId, url: already, existing: true }); }
     const src = await ensureMp3(file.path);
     const url = await uploadToShopify(src.path, `${leadId}.mp3`, 'audio/mpeg');
     fs.unlink(file.path, () => {});
@@ -524,6 +530,10 @@ app.post('/save_preview', anyFile, async (req, res) => {
   if (!file) return res.status(400).send('no file received');
   const leadId = req.body.lead_id || 'unknown';
   try {
+    // Idempotence, même raison que /save_audio : un retry n8n après un 502 ne doit pas
+    // créer un doublon renommé. Le remplacement d'un extrait passe par /replace_preview.
+    const already = await findFileUrl(`preview_${leadId}.mp3`);
+    if (already) { fs.unlink(file.path, () => {}); return res.json({ lead_id: leadId, url: already, existing: true }); }
     const src = await ensureMp3(file.path);
     const url = await uploadToShopify(src.path, `preview_${leadId}.mp3`, 'audio/mpeg');
     fs.unlink(file.path, () => {});
