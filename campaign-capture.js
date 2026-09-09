@@ -144,6 +144,26 @@
   //     vivait ici. Les 3 marchés Shopify CA/AU/NZ sont désormais en base currency USD :
   //     ne PAS réintroduire de conversion côté front, les prix codés en dur des pages font foi.
 
+  // ⭐ 09/09/2026 — Reconnaissance d'un numéro AUSTRALIEN saisi alors que le sélecteur de pays
+  //    est resté sur son défaut US. Mesuré sur 40 générations du 09/09 : 9 leads australiens,
+  //    dont 7 avec un numéro cassé (« +10449638646 », « +161429322645 ») — injoignables, et le
+  //    mauvais numéro partait aussi dans Klaviyo.
+  //    Les 4 motifs ci-dessous sont IMPOSSIBLES en numérotation nord-américaine (NANP) :
+  //      · 10 chiffres commençant par 04  -> aucun indicatif régional NANP ne commence par 0
+  //      · 11 chiffres commençant par 61  -> un US/CA à 11 chiffres commence par le 1 du pays
+  //                                          (un vrai 617…/619… fait 10 chiffres, pas 11)
+  //      · 12 chiffres commençant par 161 -> aucun numéro NANP ne fait 12 chiffres
+  //      ·  9 chiffres commençant par 4   -> AU sans son 0 ; un US à 9 chiffres est de toute
+  //                                          façon incomplet, donc rien de valide n'est dégradé
+  //    C'est la seule raison pour laquelle on peut se permettre de ne pas croire le sélecteur.
+  function mlnLooksAU(digits) {
+    var d = String(digits || '');
+    return (d.length === 10 && d.slice(0, 2) === '04')
+        || (d.length === 11 && d.slice(0, 2) === '61')
+        || (d.length === 12 && d.slice(0, 3) === '161')
+        || (d.length === 9  && d.charAt(0) === '4');
+  }
+
   // 2) Injecte campaign dans le submit Web3Forms — UNIQUEMENT sur la page summary.
   //    Ailleurs (produits, panier, landing) le script ne touche à rien : fetch n'est jamais patché.
   var onSummary = false;
@@ -192,12 +212,21 @@
               var sel = document.getElementById('mlnCpCountry');
               var country = (sel && sel.value) || 'US';
               var DIAL = { US: '1', CA: '1', AU: '61', NZ: '64' };
-              var dial = DIAL[country] || '1';
               var local = String(payload.phone || '').replace(/\D/g, '');
+              // Bascule AU seulement si le client est resté sur le défaut US (ou CA, même
+              // indicatif) : un choix EXPLICITE de AU ou NZ est respecté tel quel, et les
+              // numéros US/CA valides ne matchent aucun des 4 motifs -> jamais touchés.
+              if ((country === 'US' || country === 'CA') && mlnLooksAU(local)) {
+                country = 'AU';
+                try { if (sel) sel.value = 'AU'; } catch (e3) {}
+              }
+              var dial = DIAL[country] || '1';
               if (country === 'US' || country === 'CA') {
                 if (local.length === 11 && local.charAt(0) === '1') local = local.slice(1);
               } else {
                 local = local.replace(/^0+/, ''); // AU/NZ : retire le 0 de préfixe national
+                // Indicatif déjà tapé par le client (61… ou 161…) : on ne le double pas.
+                if (dial === '61') local = local.replace(/^1?61/, '');
               }
               if (local) {
                 var e164 = '+' + dial + local;
@@ -222,6 +251,38 @@
       return _fetch(input, init);
     };
   }
+})();
+
+/* Melonia — sélecteur de pays : bascule sur AU dès que le numéro tapé est australien.
+   Purement visuel (le submit refait la détection de toute façon, cf. mlnLooksAU) : sans ça le
+   client australien voit « 🇺🇸 +1 » à côté de son propre numéro et n'a aucune raison de corriger. */
+(function () {
+  try {
+    if ((location.pathname || '').toLowerCase().indexOf('summary') === -1) return;
+    var run = function () {
+      var inp = document.getElementById('mlnCpPhone');
+      var sel = document.getElementById('mlnCpCountry');
+      if (!inp || !sel || inp.__mlnAuBound) return;
+      inp.__mlnAuBound = true;
+      inp.addEventListener('input', function () {
+        try {
+          var d = String(inp.value || '').replace(/\D/g, '');
+          // On ne repasse jamais le sélecteur sur US : seul le client peut annuler son choix.
+          if ((sel.value === 'US' || sel.value === 'CA')
+              && ((d.length === 10 && d.slice(0, 2) === '04')
+               || (d.length === 11 && d.slice(0, 2) === '61')
+               || (d.length === 12 && d.slice(0, 3) === '161')
+               || (d.length === 9 && d.charAt(0) === '4'))) {
+            sel.value = 'AU';
+            try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+          }
+        } catch (e) {}
+      });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
+    else run();
+    setTimeout(run, 1200); // le champ est parfois rendu après coup
+  } catch (e) {}
 })();
 
 /* Melonia — load the quiz voice-input widget (defensive: no-op on pages without the 3 quiz textareas) */
