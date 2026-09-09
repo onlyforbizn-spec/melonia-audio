@@ -163,6 +163,9 @@
         || (d.length === 12 && d.slice(0, 3) === '161')
         || (d.length === 9  && d.charAt(0) === '4');
   }
+  // Exposé : le bloc « sélecteur de pays » plus bas est une AUTRE closure et doit appliquer
+  // exactement le même critère. Deux copies du test finiraient par diverger.
+  try { window.__mlnLooksAU = mlnLooksAU; } catch (e) {}
 
   // 2) Injecte campaign dans le submit Web3Forms — UNIQUEMENT sur la page summary.
   //    Ailleurs (produits, panier, landing) le script ne touche à rien : fetch n'est jamais patché.
@@ -253,35 +256,95 @@
   }
 })();
 
-/* Melonia — sélecteur de pays : bascule sur AU dès que le numéro tapé est australien.
-   Purement visuel (le submit refait la détection de toute façon, cf. mlnLooksAU) : sans ça le
-   client australien voit « 🇺🇸 +1 » à côté de son propre numéro et n'a aucune raison de corriger. */
+/* Melonia — sélecteur de pays de /pages/summary : le bon pays est posé AVANT que le client tape.
+   Le problème n'était pas le format du numéro, c'était l'abandon : un Australien qui voit « 🇺🇸 +1 »
+   à côté du champ ne devine pas qu'il peut en changer — il laisse le champ vide et on perd le
+   numéro, parfois la demande. Deux couches, dans cet ordre :
+     1. AU CHARGEMENT — pays déduit du FUSEAU HORAIRE du navigateur. Instantané, aucune requête
+        réseau (donc rien à rate-limiter, contrairement au geo-IP retiré le 01/09), disponible
+        partout, et `Australia/*` est sans ambiguïté. Le placeholder suit, pour que le client
+        reconnaisse le format qu'on attend de lui.
+     2. À LA SAISIE — filet pour le cas où le fuseau ment (VPN, appareil mal réglé) : un numéro
+        de forme australienne rebascule le sélecteur.
+   Le submit refait la détection de toute façon (mlnLooksAU), donc ces deux couches servent
+   uniquement à ce que le client VOIE le bon pays. On ne repasse jamais un sélecteur sur US :
+   seul le client peut annuler son propre choix. */
 (function () {
   try {
     if ((location.pathname || '').toLowerCase().indexOf('summary') === -1) return;
+
+    var CA_TZ = {
+      'America/Toronto': 1, 'America/Montreal': 1, 'America/Vancouver': 1, 'America/Edmonton': 1,
+      'America/Winnipeg': 1, 'America/Halifax': 1, 'America/St_Johns': 1, 'America/Regina': 1,
+      'America/Moncton': 1, 'America/Whitehorse': 1, 'America/Yellowknife': 1, 'America/Iqaluit': 1,
+      'America/Dawson_Creek': 1, 'America/Glace_Bay': 1, 'America/Goose_Bay': 1, 'America/Dawson': 1,
+      'America/Blanc-Sablon': 1, 'America/Rankin_Inlet': 1, 'America/Resolute': 1, 'America/Creston': 1,
+      'America/Atikokan': 1, 'America/Fort_Nelson': 1, 'America/Inuvik': 1, 'America/Nipigon': 1,
+      'America/Pangnirtung': 1, 'America/Rainy_River': 1, 'America/Swift_Current': 1,
+      'America/Thunder_Bay': 1, 'America/Cambridge_Bay': 1
+    };
+    function guessCountry() {
+      var tz = '';
+      try { tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || ''; } catch (e) { return null; }
+      if (!tz) return null;
+      if (tz.indexOf('Australia/') === 0) return 'AU';
+      if (tz === 'Pacific/Auckland' || tz === 'Pacific/Chatham') return 'NZ';
+      if (CA_TZ[tz]) return 'CA';
+      return null;
+    }
+    var PH = { AU: '0412 345 678', NZ: '021 234 5678' };
+
+    function setCountry(sel, inp, code) {
+      if (!sel || sel.value === code) return;
+      var ok = false;
+      for (var k = 0; k < sel.options.length; k++) if (sel.options[k].value === code) ok = true;
+      if (!ok) return;                       // la page ne propose pas ce pays : on ne force rien
+      sel.value = code;
+      try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+      if (inp && PH[code] && !inp.value) inp.setAttribute('placeholder', PH[code]);
+    }
+
     var run = function () {
       var inp = document.getElementById('mlnCpPhone');
       var sel = document.getElementById('mlnCpCountry');
-      if (!inp || !sel || inp.__mlnAuBound) return;
-      inp.__mlnAuBound = true;
-      inp.addEventListener('input', function () {
-        try {
-          var d = String(inp.value || '').replace(/\D/g, '');
-          // On ne repasse jamais le sélecteur sur US : seul le client peut annuler son choix.
-          if ((sel.value === 'US' || sel.value === 'CA')
-              && ((d.length === 10 && d.slice(0, 2) === '04')
-               || (d.length === 11 && d.slice(0, 2) === '61')
-               || (d.length === 12 && d.slice(0, 3) === '161')
-               || (d.length === 9 && d.charAt(0) === '4'))) {
-            sel.value = 'AU';
-            try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
-          }
-        } catch (e) {}
-      });
+      if (!inp || !sel) return;
+
+      // 1) Présélection au chargement, tant que le client n'a rien choisi lui-même.
+      if (!sel.__mlnUserPicked && (sel.value === 'US' || !sel.value)) {
+        var g = guessCountry();
+        if (g) setCountry(sel, inp, g);
+      }
+      // Dès que le client touche le sélecteur, on ne le contredit plus jamais.
+      if (!sel.__mlnBound) {
+        sel.__mlnBound = true;
+        sel.addEventListener('change', function () { sel.__mlnUserPicked = true; });
+      }
+
+      // 2) Filet à la saisie : un numéro de forme australienne rebascule le sélecteur.
+      if (!inp.__mlnAuBound) {
+        inp.__mlnAuBound = true;
+        inp.addEventListener('input', function () {
+          try {
+            if (sel.__mlnUserPicked) return;
+            var d = String(inp.value || '').replace(/\D/g, '');
+            var looksAU = (typeof window.__mlnLooksAU === 'function')
+              ? window.__mlnLooksAU
+              : function (x) {   // repli : même critère, si le bloc du dessus n'a pas tourné
+                  x = String(x || '');
+                  return (x.length === 10 && x.slice(0, 2) === '04')
+                      || (x.length === 11 && x.slice(0, 2) === '61')
+                      || (x.length === 12 && x.slice(0, 3) === '161')
+                      || (x.length === 9 && x.charAt(0) === '4');
+                };
+            if ((sel.value === 'US' || sel.value === 'CA') && looksAU(d)) setCountry(sel, inp, 'AU');
+          } catch (e) {}
+        });
+      }
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
     else run();
-    setTimeout(run, 1200); // le champ est parfois rendu après coup
+    setTimeout(run, 1200);   // le champ est parfois rendu après coup
+    setTimeout(run, 3000);
   } catch (e) {}
 })();
 
