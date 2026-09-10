@@ -205,14 +205,24 @@
   //    On bloque le submit plutot que d'envoyer : un numero faux d'un chiffre est le numero de
   //    QUELQU'UN D'AUTRE, on ne « repare » jamais en devinant le chiffre a retirer.
   function mlnPhoneProblem(parts) {
-    var n = (parts && parts.local || '').length;
+    var d = (parts && parts.local) || '';
+    var n = d.length;
     if (!n) return null;                            // champ vide : la page a deja son message
+    var US = 'Please double-check your phone number: a US number has 10 digits, like (555) 123-4567.';
     if (parts.country === 'AU') {
-      if (n !== 9) return 'Please double-check your Australian number: it should be 10 digits, like 0412 345 678.';
+      // Mobiles en 4, fixes en 2/3/7/8. Toujours 9 chiffres une fois le 0 national retire.
+      if (n !== 9 || '23478'.indexOf(d.charAt(0)) === -1)
+        return 'Please double-check your Australian number: it should be 10 digits, like 0412 345 678.';
     } else if (parts.country === 'NZ') {
       if (n < 7 || n > 10) return 'Please double-check your New Zealand number, like 021 234 5678.';
     } else {
-      if (n !== 10) return 'Please double-check your phone number: a US number has 10 digits, like (555) 123-4567.';
+      if (n !== 10) return US;
+      // ⭐ 10/09/2026 — La LONGUEUR ne suffit pas. Vu le meme jour : « 1602316091 » (10 chiffres,
+      //    donc accepte) part en +11602316091 et Klaviyo le refuse -> profil sans telephone, client
+      //    perdu en silence. En numerotation nord-americaine, l'indicatif regional ET le prefixe
+      //    d'abonne commencent par 2 a 9 (format NXX-NXX-XXXX) : un 0 ou un 1 en 1re ou 4e position
+      //    est impossible, c'est toujours un chiffre en trop ou un 1 de pays mal place.
+      if ('01'.indexOf(d.charAt(0)) !== -1 || '01'.indexOf(d.charAt(3)) !== -1) return US;
     }
     return null;
   }
