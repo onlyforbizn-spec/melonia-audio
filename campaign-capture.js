@@ -167,6 +167,60 @@
   // exactement le même critère. Deux copies du test finiraient par diverger.
   try { window.__mlnLooksAU = mlnLooksAU; } catch (e) {}
 
+  // ⭐ 10/09/2026 — UNE SEULE normalisation du telephone, partagee par le submit et par la
+  //    validation. Elle etait ecrite en clair dans le patch fetch ; deux copies auraient
+  //    diverge, exactement comme le critere mlnLooksAU l'aurait fait sans la ligne ci-dessus.
+  //    Rend {country, dial, local, e164} : `local` = numero NATIONAL, sans 0 ni indicatif.
+  function mlnPhoneParts(raw, selValue) {
+    var DIAL = { US: '1', CA: '1', AU: '61', NZ: '64' };
+    var country = selValue || 'US';
+    var local = String(raw || '').replace(/\D/g, '');
+    // Bascule AU seulement si le client est reste sur le defaut US (ou CA, meme indicatif) :
+    // un choix EXPLICITE de AU ou NZ est respecte tel quel, et les numeros US/CA valides ne
+    // matchent aucun des 4 motifs -> jamais touches.
+    var switched = false;
+    if ((country === 'US' || country === 'CA') && mlnLooksAU(local)) { country = 'AU'; switched = true; }
+    var dial = DIAL[country] || '1';
+    if (country === 'US' || country === 'CA') {
+      if (local.length === 11 && local.charAt(0) === '1') local = local.slice(1);
+    } else {
+      local = local.replace(/^0+/, '');            // AU/NZ : retire le 0 de prefixe national
+      // Indicatif deja tape par le client (61…/161…, 64…/164…) : on ne le double pas.
+      if (dial === '61') local = local.replace(/^1?61/, '');
+      if (dial === '64') local = local.replace(/^1?64/, '');
+    }
+    return {
+      country: country, dial: dial, local: local, switched: switched,
+      e164: local ? ('+' + dial + local) : ''
+    };
+  }
+
+  // ⭐ 10/09/2026 — LONGUEUR du numero, par pays. Pourquoi ce garde-fou existe :
+  //    du 09 au 10/09, 17 leads australiens sur 64 (27 %) n'ont JAMAIS recu leur SMS d'extrait.
+  //    ClickSend les rejetait en `INVALID_RECIPIENT` — un statut PAR MESSAGE, renvoye dans un
+  //    HTTP 200, donc invisible cote n8n. Cause : un chiffre de trop (« +614023938545 » :
+  //    10 chiffres apres le 61 la ou un numero australien en fait 9). Rien ne l'arretait :
+  //    `isValidPhone` de /pages/summary exige AU MOINS 10 chiffres et n'a aucune borne haute,
+  //    et le format national n'a rien a voir d'un pays a l'autre.
+  //    On bloque le submit plutot que d'envoyer : un numero faux d'un chiffre est le numero de
+  //    QUELQU'UN D'AUTRE, on ne « repare » jamais en devinant le chiffre a retirer.
+  function mlnPhoneProblem(parts) {
+    var n = (parts && parts.local || '').length;
+    if (!n) return null;                            // champ vide : la page a deja son message
+    if (parts.country === 'AU') {
+      if (n !== 9) return 'Please double-check your Australian number: it should be 10 digits, like 0412 345 678.';
+    } else if (parts.country === 'NZ') {
+      if (n < 7 || n > 10) return 'Please double-check your New Zealand number, like 021 234 5678.';
+    } else {
+      if (n !== 10) return 'Please double-check your phone number: a US number has 10 digits, like (555) 123-4567.';
+    }
+    return null;
+  }
+  try {
+    window.__mlnPhoneParts = mlnPhoneParts;
+    window.__mlnPhoneProblem = mlnPhoneProblem;
+  } catch (e) {}
+
   // 2) Injecte campaign dans le submit Web3Forms — UNIQUEMENT sur la page summary.
   //    Ailleurs (produits, panier, landing) le script ne touche à rien : fetch n'est jamais patché.
   var onSummary = false;
@@ -213,34 +267,18 @@
             // parte au bon pays (aujourd'hui tout était forcé en +1, cassait AU/NZ).
             try {
               var sel = document.getElementById('mlnCpCountry');
-              var country = (sel && sel.value) || 'US';
-              var DIAL = { US: '1', CA: '1', AU: '61', NZ: '64' };
-              var local = String(payload.phone || '').replace(/\D/g, '');
-              // Bascule AU seulement si le client est resté sur le défaut US (ou CA, même
-              // indicatif) : un choix EXPLICITE de AU ou NZ est respecté tel quel, et les
-              // numéros US/CA valides ne matchent aucun des 4 motifs -> jamais touchés.
-              if ((country === 'US' || country === 'CA') && mlnLooksAU(local)) {
-                country = 'AU';
-                try { if (sel) sel.value = 'AU'; } catch (e3) {}
-              }
-              var dial = DIAL[country] || '1';
-              if (country === 'US' || country === 'CA') {
-                if (local.length === 11 && local.charAt(0) === '1') local = local.slice(1);
-              } else {
-                local = local.replace(/^0+/, ''); // AU/NZ : retire le 0 de préfixe national
-                // Indicatif déjà tapé par le client (61… ou 161…) : on ne le double pas.
-                if (dial === '61') local = local.replace(/^1?61/, '');
-              }
-              if (local) {
-                var e164 = '+' + dial + local;
+              var parts = mlnPhoneParts(payload.phone, sel && sel.value);
+              // Le selecteur suit la bascule, pour que le client voie le pays reellement utilise.
+              if (parts.switched) { try { if (sel) sel.value = parts.country; } catch (e3) {} }
+              if (parts.local) {
                 var NAME = { US: 'United States', CA: 'Canada', AU: 'Australia', NZ: 'New Zealand' };
-                var cname = NAME[country] || country;
-                payload.phone = e164;
-                payload.phone_country = country;   // code (US|CA|AU|NZ)
-                payload.phone_country_name = cname; // nom lisible (Canada, Australia…)
+                var cname = NAME[parts.country] || parts.country;
+                payload.phone = parts.e164;
+                payload.phone_country = parts.country;   // code (US|CA|AU|NZ)
+                payload.phone_country_name = cname;      // nom lisible (Canada, Australia…)
                 if (typeof payload.message === 'string') {
                   // Nom du pays en clair : +1 est partagé US/Canada, le numéro seul ne suffit pas.
-                  payload.message = payload.message.replace(/Phone:[^\n]*/, 'Phone: ' + e164 + ' (' + cname + ')');
+                  payload.message = payload.message.replace(/Phone:[^\n]*/, 'Phone: ' + parts.e164 + ' (' + cname + ')');
                 }
               }
             } catch (e2) {}
@@ -294,13 +332,20 @@
     }
     var PH = { AU: '0412 345 678', NZ: '021 234 5678' };
 
+    // `code` peut valoir 'US' : c'est la marche arriere du filet de saisie, et elle n'annule
+    // qu'une bascule automatique (l'appelant verifie __mlnUserPicked avant d'appeler).
     function setCountry(sel, inp, code) {
       if (!sel || sel.value === code) return;
       var ok = false;
       for (var k = 0; k < sel.options.length; k++) if (sel.options[k].value === code) ok = true;
       if (!ok) return;                       // la page ne propose pas ce pays : on ne force rien
       sel.value = code;
+      // Le 'change' qu'on dispatche ici passait pour un choix du client (il arme __mlnUserPicked)
+      // et gelait la presélection. On le marque le temps du dispatch, qui est synchrone.
+      sel.__mlnAuto = true;
       try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+      sel.__mlnAuto = false;
+      sel.__mlnAutoSet = code;               // ce pays vient de nous
       if (inp && PH[code] && !inp.value) inp.setAttribute('placeholder', PH[code]);
     }
 
@@ -317,28 +362,97 @@
       // Dès que le client touche le sélecteur, on ne le contredit plus jamais.
       if (!sel.__mlnBound) {
         sel.__mlnBound = true;
-        sel.addEventListener('change', function () { sel.__mlnUserPicked = true; });
+        sel.addEventListener('change', function () { if (!sel.__mlnAuto) sel.__mlnUserPicked = true; });
       }
 
       // 2) Filet à la saisie : un numéro de forme australienne rebascule le sélecteur.
+      //    🔴 10/09/2026 — CE FILET RENVOYAIT DES AMERICAINS EN AUSTRALIE. Il utilisait les 4
+      //    motifs de mlnLooksAU, dont « 9 chiffres commencant par 4 ». Or un numero americain
+      //    d'indicatif 4xx (402 Nebraska, 415 San Francisco, 478 Georgia, 440 Ohio…) PASSE PAR
+      //    CET ETAT en cours de frappe, au 9e chiffre. Le selecteur basculait sur AU, le 10e
+      //    chiffre arrivait, et comme on ne revenait jamais en arriere le numero partait en
+      //    « +61 » + 10 chiffres : injoignable partout (17 leads sur 64 du 09 au 10/09), et
+      //    faux jusque dans Klaviyo. Deux regles depuis :
+      //      · a la SAISIE, seuls les motifs NON AMBIGUS basculent (jamais le 9 chiffres :
+      //        un numero en cours de frappe est incomplet par nature) ;
+      //      · une bascule qu'on a faite NOUS-MEMES est reversible tant que le client n'a pas
+      //        choisi son pays : le 10e chiffre doit pouvoir ramener le drapeau americain.
+      //    Le submit, lui, garde les 4 motifs : la, le numero est fini.
+      function looksAUTyping(x) {
+        x = String(x || '');
+        return (x.length === 10 && x.slice(0, 2) === '04')
+            || (x.length === 11 && x.slice(0, 2) === '61')
+            || (x.length === 12 && x.slice(0, 3) === '161');
+      }
       if (!inp.__mlnAuBound) {
         inp.__mlnAuBound = true;
         inp.addEventListener('input', function () {
           try {
-            if (sel.__mlnUserPicked) return;
+            if (sel.__mlnUserPicked) return;          // choix du client : on ne le contredit jamais
             var d = String(inp.value || '').replace(/\D/g, '');
-            var looksAU = (typeof window.__mlnLooksAU === 'function')
-              ? window.__mlnLooksAU
-              : function (x) {   // repli : même critère, si le bloc du dessus n'a pas tourné
-                  x = String(x || '');
-                  return (x.length === 10 && x.slice(0, 2) === '04')
-                      || (x.length === 11 && x.slice(0, 2) === '61')
-                      || (x.length === 12 && x.slice(0, 3) === '161')
-                      || (x.length === 9 && x.charAt(0) === '4');
-                };
-            if ((sel.value === 'US' || sel.value === 'CA') && looksAU(d)) setCountry(sel, inp, 'AU');
+            if (looksAUTyping(d)) { setCountry(sel, inp, 'AU'); return; }
+            // Plus de motif australien, et c'est nous qui avions pose le pays -> on defait.
+            if (sel.__mlnAutoSet === 'AU' && d.length) setCountry(sel, inp, guessCountry() || 'US');
           } catch (e) {}
         });
+      }
+
+      // 3) ⭐ 10/09/2026 — GARDE-FOU DE LONGUEUR (voir mlnPhoneProblem plus haut). Un numero
+      //    d'un chiffre de trop passait le submit sans rien casser de visible, puis mourait
+      //    en `INVALID_RECIPIENT` chez ClickSend : 27 % des leads australiens du premier jour.
+      //    On bloque EN CAPTURE sur `document`, jamais sur le formulaire : sur l'element cible
+      //    la phase ne departage pas les listeners, c'est l'ordre d'enregistrement qui gagne,
+      //    et le script inline de la page s'enregistre avant ce fichier externe.
+      //    Rien ne bloque si le bloc du dessus n'a pas tourne : sans __mlnPhoneParts, on laisse
+      //    passer. Un garde-fou muet vaut mieux qu'un funnel ferme.
+      var mlnErrBox = function () { return document.getElementById('mlnCpErr'); };
+      var mlnLastMsg = null;
+      var mlnPhoneMsg = function (el, s2) {
+        if (typeof window.__mlnPhoneParts !== 'function' || typeof window.__mlnPhoneProblem !== 'function') return null;
+        var raw = String(el.value || '').replace(/\D/g, '');
+        // Cas AMBIGU : 9 chiffres commencant par 4, c'est A LA FOIS un mobile australien prive
+        // de son 0 et un numero americain ampute d'un chiffre. Le motif tranche pour AU depuis
+        // le 09/09 — on ne le suit que si le client n'a pas choisi son pays lui-meme ET que le
+        // fuseau dit l'Australie. Sinon on renvoie corriger : un numero faux d'un chiffre est
+        // le numero de QUELQU'UN D'AUTRE, et l'envoyer coute plus cher que de le perdre.
+        if (raw.length === 9 && raw.charAt(0) === '4'
+            && !(s2 && s2.__mlnUserPicked && (s2.value === 'AU' || s2.value === 'NZ'))
+            && guessCountry() !== 'AU') {
+          return 'Please double-check your phone number: a US number has 10 digits, like (555) 123-4567.';
+        }
+        return window.__mlnPhoneProblem(window.__mlnPhoneParts(el.value, s2 && s2.value));
+      };
+      var mlnShowMsg = function (msg) {
+        var box = mlnErrBox();
+        if (!box) return;
+        if (msg) { box.textContent = msg; box.classList.add('show'); mlnLastMsg = msg; }
+        // On n'efface QUE notre propre message : celui de l'email appartient a la page.
+        else if (mlnLastMsg && box.textContent === mlnLastMsg) { box.classList.remove('show'); mlnLastMsg = null; }
+      };
+      if (!window.__mlnPhoneGuard) {
+        window.__mlnPhoneGuard = true;
+        document.addEventListener('submit', function (ev) {
+          try {
+            var t = ev.target;
+            if (!t || t.id !== 'mlnCpForm') return;
+            var i2 = document.getElementById('mlnCpPhone');
+            var s3 = document.getElementById('mlnCpCountry');
+            if (!i2 || !i2.value) return;          // champ vide : la page a deja son message
+            var msg = mlnPhoneMsg(i2, s3);
+            if (!msg) return;
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            mlnShowMsg(msg);
+            try { i2.focus(); } catch (e7) {}
+          } catch (e8) {}
+        }, true);
+      }
+      // Le client corrige AVANT de cliquer : message a la sortie du champ, efface des que c'est bon.
+      if (!inp.__mlnLenBound) {
+        inp.__mlnLenBound = true;
+        inp.addEventListener('blur', function () { try { if (inp.value) mlnShowMsg(mlnPhoneMsg(inp, sel)); } catch (e9) {} });
+        inp.addEventListener('input', function () { try { if (!mlnPhoneMsg(inp, sel)) mlnShowMsg(null); } catch (e10) {} });
+        sel.addEventListener('change', function () { try { if (inp.value) mlnShowMsg(mlnPhoneMsg(inp, sel)); } catch (e11) {} });
       }
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
