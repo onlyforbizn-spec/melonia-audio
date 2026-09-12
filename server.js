@@ -472,53 +472,104 @@ app.post('/replace_audio', anyFile, async (req, res) => {
 // Sert au post-achat "3rd verse" : on y garde l'ID du clip Suno + la durée + le style pour pouvoir
 // appeler Suno Extend plus tard. Merge : relit le meta existant et fusionne les nouveaux champs
 // (le workflow Suno écrit l'audio_id ; le workflow 3rd Verse ajoute third_verse_status sans écraser).
-app.post('/save_meta', async (req, res) => {
+//
+// --- Anti-course du merge (12/09/2026) ---
+// Deux écrivains à quelques secondes d'écart se perdaient mutuellement : pendant la fenêtre
+// delete → upload → indexation (jusqu'à ~20 s), files(query:) sert encore l'ANCIENNE version — ou
+// rien du tout. Le 2e écrivain fusionnait sur une base périmée et effaçait en silence les champs
+// posés par le 1er (constaté en prod : 6 `spotify_status` perdus sur des commandes AfterSell
+// portant Spotify + 3e couplet, dont les workflows écrivent le meta dans la même minute).
+// Deux protections, valables parce que ce service tourne en UNE SEULE instance Railway :
+//  1) SÉRIALISATION PAR LEAD des écritures (chaîne de promesses) — plus jamais deux
+//     delete/upload imbriqués sur le même fichier ;
+//  2) CACHE MÉMOIRE de la dernière écriture : au merge (et en lecture /meta), si le cache est
+//     plus récent que la version indexée (comparaison des `updated_at`), c'est LUI la base.
+//     TTL 15 min — très au-delà du lag d'indexation, et le cache se refait à chaque écriture.
+const metaWriteLocks = new Map();   // lead_id -> promesse de la dernière écriture en file
+const metaLastWrite = new Map();    // lead_id -> { at, data } de la dernière écriture réussie
+const META_CACHE_TTL_MS = 15 * 60 * 1000;
+function metaCacheGet(leadId) {
+  const c = metaLastWrite.get(leadId);
+  if (!c) return null;
+  if (Date.now() - c.at > META_CACHE_TTL_MS) { metaLastWrite.delete(leadId); return null; }
+  return c.data;
+}
+function withMetaLock(leadId, fn) {
+  const prev = metaWriteLocks.get(leadId) || Promise.resolve();
+  const run = prev.then(fn, fn);                 // on passe même si l'écriture d'avant a échoué
+  const settled = run.then(() => {}, () => {});
+  metaWriteLocks.set(leadId, settled);
+  settled.then(() => { if (metaWriteLocks.get(leadId) === settled) metaWriteLocks.delete(leadId); });
+  return run;
+}
+function newerMeta(a, b) {                       // renvoie celui des deux dont updated_at est le plus récent
+  const ta = (a && Date.parse(a.updated_at)) || 0;
+  const tb = (b && Date.parse(b.updated_at)) || 0;
+  return tb > ta ? b : a;
+}
+app.post('/save_meta', (req, res) => {
   const body = req.body || {};
   const leadId = body.lead_id;
   if (!leadId) return res.status(400).json({ error: 'lead_id required' });
   const filename = `${leadId}.meta.json`;
-  try {
-    // relire l'existant pour merge
-    let current = {};
-    const existing = await findFileNode(filename);
-    if (existing && existing.url) {
-      try {
-        const r = await fetch(existing.url);
-        if (r.ok) current = await r.json();
-      } catch (e) { console.log('META read old failed:', e.message); }
-    }
-    const merged = { ...current, ...body, lead_id: leadId, updated_at: new Date().toISOString() };
-    // supprimer l'ancien puis réuploader (Shopify n'écrase pas par nom)
-    if (existing && existing.id) {
-      await deleteShopifyFile(existing.id);
-      for (let i = 0; i < 8; i++) {
-        const still = await findFileNode(filename);
-        if (!still) break;
-        await new Promise(r => setTimeout(r, 1200));
+  withMetaLock(leadId, async () => {
+    try {
+      // relire l'existant pour merge — la base est la plus récente des deux sources
+      let current = {};
+      const existing = await findFileNode(filename);
+      if (existing && existing.url) {
+        try {
+          const r = await fetch(existing.url);
+          if (r.ok) current = await r.json();
+        } catch (e) { console.log('META read old failed:', e.message); }
       }
+      current = newerMeta(current, metaCacheGet(leadId)) || {};
+      const merged = { ...current, ...body, lead_id: leadId, updated_at: new Date().toISOString() };
+      // supprimer l'ancien puis réuploader (Shopify n'écrase pas par nom)
+      if (existing && existing.id) {
+        await deleteShopifyFile(existing.id);
+        for (let i = 0; i < 8; i++) {
+          const still = await findFileNode(filename);
+          if (!still) break;
+          await new Promise(r => setTimeout(r, 1200));
+        }
+      }
+      const tmp = path.join(os.tmpdir(), `${leadId}_meta_${Date.now()}.json`);
+      fs.writeFileSync(tmp, JSON.stringify(merged), 'utf8');
+      const url = await uploadToShopify(tmp, filename, 'application/json');
+      fs.unlink(tmp, () => {});
+      metaLastWrite.set(leadId, { at: Date.now(), data: merged });
+      res.json({ lead_id: leadId, url, meta: merged });
+    } catch (e) {
+      console.log('SAVE META ERROR:', e.message);
+      res.status(500).send('meta error: ' + e.message);
     }
-    const tmp = path.join(os.tmpdir(), `${leadId}_meta_${Date.now()}.json`);
-    fs.writeFileSync(tmp, JSON.stringify(merged), 'utf8');
-    const url = await uploadToShopify(tmp, filename, 'application/json');
-    fs.unlink(tmp, () => {});
-    res.json({ lead_id: leadId, url, meta: merged });
-  } catch (e) {
-    console.log('SAVE META ERROR:', e.message);
-    res.status(500).send('meta error: ' + e.message);
-  }
+  });
 });
 
 // Lit le meta d'un Lead ID et renvoie son contenu JSON (pour le workflow 3rd Verse).
+// Le cache de dernière écriture couvre la fenêtre d'indexation : une lecture qui tombe pendant le
+// delete→upload d'un /save_meta (ou juste après) servait `ready:false` ou l'ancienne version —
+// c'est ce qui a fabriqué le faux cas SAV « aucun meta pour ce lead » du 12/09 (#1200, client
+// pourtant livré, marqueur présent).
 app.get('/meta', async (req, res) => {
   const leadId = req.query.lead_id;
   if (!leadId) return res.status(400).json({ ready: false, error: 'no lead_id' });
   try {
+    const cached = metaCacheGet(leadId);
     const node = await findFileNode(`${leadId}.meta.json`);
-    if (!node || !node.url) return res.json({ ready: false });
+    if (!node || !node.url) {
+      if (cached) return res.json({ ready: true, meta: cached, cached: true });
+      return res.json({ ready: false });
+    }
     const r = await fetch(node.url);
-    if (!r.ok) return res.json({ ready: false });
+    if (!r.ok) {
+      if (cached) return res.json({ ready: true, meta: cached, cached: true });
+      return res.json({ ready: false });
+    }
     const meta = await r.json();
-    res.json({ ready: true, meta });
+    const best = newerMeta(meta, cached);
+    res.json({ ready: true, meta: best, cached: best !== meta || undefined });
   } catch (e) {
     console.log('GET META ERROR:', e.message);
     res.json({ ready: false });
