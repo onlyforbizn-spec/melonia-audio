@@ -144,7 +144,7 @@ async function pollFileUrl(fileId) {
   return null;
 }
 
-async function uploadToShopify(filePath, filename, mimeType) {
+async function uploadToShopify(filePath, filename, mimeType, wantNode) {
   const fileBuffer = fs.readFileSync(filePath);
   const size = fileBuffer.length;
   const mt = mimeType || 'application/octet-stream';
@@ -175,6 +175,10 @@ async function uploadToShopify(filePath, filename, mimeType) {
 
   let finalUrl = file && file.url;
   if (!finalUrl && file && file.id) finalUrl = await pollFileUrl(file.id);
+  // wantNode : renvoie aussi l'ID du fichier créé (sert au /save_meta pour pouvoir supprimer
+  // une écriture précédente PAS ENCORE INDEXÉE — introuvable par findFileNode). Les autres
+  // appelants gardent la forme historique (string URL).
+  if (wantNode) return { url: finalUrl || target.resourceUrl, id: (file && file.id) || null };
   return finalUrl || target.resourceUrl;
 }
 
@@ -523,6 +527,7 @@ app.post('/save_meta', (req, res) => {
           if (r.ok) current = await r.json();
         } catch (e) { console.log('META read old failed:', e.message); }
       }
+      const cacheEntry = metaLastWrite.get(leadId) || null;
       current = newerMeta(current, metaCacheGet(leadId)) || {};
       const merged = { ...current, ...body, lead_id: leadId, updated_at: new Date().toISOString() };
       // supprimer l'ancien puis réuploader (Shopify n'écrase pas par nom)
@@ -534,12 +539,19 @@ app.post('/save_meta', (req, res) => {
           await new Promise(r => setTimeout(r, 1200));
         }
       }
+      // L'écriture PRÉCÉDENTE peut ne pas encore être indexée : findFileNode ne la voit pas,
+      // et uploader par-dessus créerait un DOUBLON RENOMMÉ (Shopify n'écrase jamais par nom) —
+      // le fichier durable resterait l'ancien, amputé. On garde donc le fileId de chaque
+      // écriture dans le cache, et on supprime PAR ID ce que la requête ne peut pas trouver.
+      if (cacheEntry && cacheEntry.fileId && (!existing || existing.id !== cacheEntry.fileId)) {
+        try { await deleteShopifyFile(cacheEntry.fileId); } catch (e) { console.log('META del unindexed:', e.message); }
+      }
       const tmp = path.join(os.tmpdir(), `${leadId}_meta_${Date.now()}.json`);
       fs.writeFileSync(tmp, JSON.stringify(merged), 'utf8');
-      const url = await uploadToShopify(tmp, filename, 'application/json');
+      const up = await uploadToShopify(tmp, filename, 'application/json', true);
       fs.unlink(tmp, () => {});
-      metaLastWrite.set(leadId, { at: Date.now(), data: merged });
-      res.json({ lead_id: leadId, url, meta: merged });
+      metaLastWrite.set(leadId, { at: Date.now(), data: merged, fileId: up.id });
+      res.json({ lead_id: leadId, url: up.url, meta: merged });
     } catch (e) {
       console.log('SAVE META ERROR:', e.message);
       res.status(500).send('meta error: ' + e.message);
